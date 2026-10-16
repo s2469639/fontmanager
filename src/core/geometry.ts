@@ -77,33 +77,44 @@ function transformGlyph(
 ): Placed {
   const pts: [number, number][] = [];
   const box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-  const tx = (x: number, yUp: number): [number, number] => {
-    const X = ox + x * sx + yUp * sy * skewTan;
-    const Y = -yUp * sy;
+  const grow = (X: number, Y: number) => {
     pts.push([X, Y]);
     if (X < box.minX) box.minX = X;
     if (X > box.maxX) box.maxX = X;
     if (Y < box.minY) box.minY = Y;
     if (Y > box.maxY) box.maxY = Y;
-    return [X, Y];
   };
+  const tx = (x: number, yUp: number): [number, number] => [ox + x * sx + yUp * sy * skewTan, -yUp * sy];
+  // 곡선의 범위는 제어점이 아니라 곡선 위의 점으로 계산해야 여백이 실제 글자 모양에 맞습니다.
+  const STEPS = 8;
+  let cur: [number, number] = [0, 0];
   let d = '';
   for (const c of g.cmds as Cmd[]) {
     switch (c[0]) {
       case 'M': {
         const [x, y] = tx(c[1], c[2]);
         d += `M${fmt(x)} ${fmt(y)}`;
+        grow(x, y);
+        cur = [x, y];
         break;
       }
       case 'L': {
         const [x, y] = tx(c[1], c[2]);
         d += `L${fmt(x)} ${fmt(y)}`;
+        grow(x, y);
+        cur = [x, y];
         break;
       }
       case 'Q': {
         const [x1, y1] = tx(c[1], c[2]);
         const [x, y] = tx(c[3], c[4]);
         d += `Q${fmt(x1)} ${fmt(y1)} ${fmt(x)} ${fmt(y)}`;
+        for (let i = 1; i <= STEPS; i++) {
+          const t = i / STEPS;
+          const u = 1 - t;
+          grow(u * u * cur[0] + 2 * u * t * x1 + t * t * x, u * u * cur[1] + 2 * u * t * y1 + t * t * y);
+        }
+        cur = [x, y];
         break;
       }
       case 'C': {
@@ -111,6 +122,15 @@ function transformGlyph(
         const [x2, y2] = tx(c[3], c[4]);
         const [x, y] = tx(c[5], c[6]);
         d += `C${fmt(x1)} ${fmt(y1)} ${fmt(x2)} ${fmt(y2)} ${fmt(x)} ${fmt(y)}`;
+        for (let i = 1; i <= STEPS; i++) {
+          const t = i / STEPS;
+          const u = 1 - t;
+          grow(
+            u * u * u * cur[0] + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x,
+            u * u * u * cur[1] + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y,
+          );
+        }
+        cur = [x, y];
         break;
       }
       case 'Z':
@@ -156,7 +176,7 @@ export function buildWordmark(text: string, p: Params): Wordmark | null {
     if (jamo && ch !== ' ') {
       // 자소 조립 모드는 한글만 그립니다. 그 밖의 글자는 그리지 않고 알립니다.
       const ov = p.glyphs[drawn];
-      const g = buildJamoGlyph(ch, p.jamo, drawn, ov);
+      const g = buildJamoGlyph(ch, p.jamo, drawn, ov, p.variants);
       if (!g) {
         if (!missingChars.includes(ch)) missingChars.push(ch);
         continue;

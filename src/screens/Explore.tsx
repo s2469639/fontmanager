@@ -21,10 +21,10 @@ export function Explore({ go }: { go: (r: Route) => void }) {
     if (!center) return [];
     const rng = mulberry32(seed * 7919 + 13);
     return Array.from({ length: VARIANT_COUNT }, () => {
-      const p = mutate(center, rng, siblings);
+      const p = mutate(center, rng, siblings, text);
       return { params: p, tags: describeDiff(p, center) };
     });
-  }, [center, siblings, seed]);
+  }, [center, siblings, seed, text]);
 
   const edit = (p: Params, label: string) => {
     startEditing(p, label);

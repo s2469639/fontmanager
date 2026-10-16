@@ -1079,3 +1079,54 @@ input[type='range']::-moz-range-thumb {
   max-width: 100%;
   overflow-x: auto;
 }
+
+/* ---------- 자소 모양 선택 ---------- */
+.shaperow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.shaperow__ch {
+  flex: none;
+  width: 28px;
+  padding-top: 8px;
+  font-size: 20px;
+  font-weight: 800;
+  text-align: center;
+}
+.shaperow__opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.variantchip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 54px;
+  padding: 4px 2px 3px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.variantchip svg {
+  width: 32px;
+  height: 32px;
+}
+.variantchip:hover {
+  border-color: var(--ink);
+}
+.variantchip.is-on {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.variantchip--text {
+  justify-content: center;
+  height: 58px;
+}

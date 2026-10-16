@@ -50,7 +50,7 @@ const JAMO_DIRECTIONS: Direction[] = [
     note: '고리가 열리고 글자가 위아래로 어긋납니다. 숨 쉬는 듯한 간격이에요.',
     params: jamo(
       { strokeW: 0.032, cap: 'round', roundness: 0.8, circleGap: 0.14, bounce: 0.04, gap: 6, vowelScale: 1.08 },
-      { tracking: 0.06 },
+      { tracking: 0.06, variants: { ㄱ: 2, ㄴ: 2, ㅅ: 2 } },
     ),
     siblings: [],
     experimental: true,

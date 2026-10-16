@@ -1,6 +1,7 @@
 import type { Cap, Corner, OShape, Params } from './types';
 import { LIMITS } from './defaults';
 import { getFont } from '../data/fonts';
+import { selectableJamoIn, variantNames } from './jamo';
 
 /** 시드가 같으면 같은 변주를 만드는 난수 */
 export function mulberry32(seed: number) {
@@ -21,8 +22,19 @@ const jitter = (rng: () => number, amount: number) => (rng() * 2 - 1) * amount;
  * 기준 시안 주변의 이웃 시안을 만듭니다.
  * 기준에서 너무 멀어지지 않도록 변화 폭을 제한하고, 효과는 낮은 확률로만 켭니다.
  */
-function mutateJamo(center: Params, rng: () => number): Params {
-  const p: Params = { ...center, jamo: { ...center.jamo } };
+function mutateJamo(center: Params, rng: () => number, text: string): Params {
+  const p: Params = { ...center, jamo: { ...center.jamo }, variants: { ...center.variants } };
+  // 텍스트에 실제로 쓰인 자모의 뼈대 모양을 바꿔 눈에 보이는 변주를 만듭니다.
+  const chars = selectableJamoIn(text);
+  const flips = rng() < 0.7 ? (rng() < 0.3 ? 2 : 1) : 0;
+  for (let i = 0; i < flips && chars.length; i++) {
+    const c = chars[Math.floor(rng() * chars.length)];
+    const n = variantNames(c).length;
+    const cur = p.variants[c] ?? 0;
+    const next = (cur + 1 + Math.floor(rng() * (n - 1))) % n;
+    if (next === 0) delete p.variants[c];
+    else p.variants[c] = next;
+  }
   const j = p.jamo;
   j.strokeW = Math.round(clamp(j.strokeW + jitter(rng, 0.02), LIMITS.strokeW.min, LIMITS.strokeW.max) * 1000) / 1000;
   if (rng() < 0.3) {
@@ -53,8 +65,8 @@ function mutateJamo(center: Params, rng: () => number): Params {
   return p;
 }
 
-export function mutate(center: Params, rng: () => number, siblings: string[]): Params {
-  if (center.engine === 'jamo') return mutateJamo(center, rng);
+export function mutate(center: Params, rng: () => number, siblings: string[], text = ''): Params {
+  if (center.engine === 'jamo') return mutateJamo(center, rng, text);
   const p: Params = { ...center };
 
   if (rng() < 0.3) {
@@ -98,6 +110,11 @@ function describeJamoDiff(p: Params, base: Params): string[] {
   const tags: string[] = [];
   const a = p.jamo;
   const b = base.jamo;
+  // 뼈대 모양이 바뀐 자모를 먼저 알려 줍니다.
+  for (const c of new Set([...Object.keys(p.variants), ...Object.keys(base.variants)])) {
+    const i = p.variants[c] ?? 0;
+    if (i !== (base.variants[c] ?? 0)) tags.push(`${c} ${variantNames(c)[i] ?? '기본'}`);
+  }
   const ds = a.strokeW - b.strokeW;
   if (Math.abs(ds) > 0.01) tags.push(ds > 0 ? '더 굵은 선' : '더 가는 선');
   if (a.cap !== b.cap) tags.push(a.cap === 'round' ? '둥근 끝' : a.cap === 'square' ? '각진 끝' : '평평한 끝');

@@ -49,6 +49,7 @@ function fillParams(p?: Partial<Params>): Params {
     ...(p ?? {}),
     jamo: { ...DEFAULT_JAMO, ...(p?.jamo ?? {}) },
     glyphs: { ...(p?.glyphs ?? {}) },
+    variants: { ...(p?.variants ?? {}) },
   };
 }
 

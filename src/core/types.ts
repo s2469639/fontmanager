@@ -45,6 +45,10 @@ export interface GlyphOverride {
   circleGap?: number;
   /** 이 글자의 선 굵기 배율 */
   stroke?: number;
+  /** 이 글자의 초성/모음/받침 뼈대 모양 번호 (전체 설정보다 우선) */
+  Lv?: number;
+  Vv?: number;
+  Tv?: number;
 }
 
 /** 워드마크의 모든 조형 값. UI와 렌더링 엔진이 공유하는 유일한 상태 형태입니다. */
@@ -53,6 +57,8 @@ export interface Params {
   jamo: JamoParams;
   /** 자소 조립 모드에서 글자별로 바꾼 값. 키는 그려진 글자의 순서(0부터) */
   glyphs: Record<number, GlyphOverride>;
+  /** 자모별 뼈대 모양 번호 (예: ㄱ → 2). 지정하지 않으면 0번 */
+  variants: Record<string, number>;
   fontId: string;
   /** 0..1. 가변 글꼴은 wght 축, 고정 글꼴은 외곽선 보정(근사)으로 해석됩니다. */
   weight: number;

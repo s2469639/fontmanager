@@ -138,3 +138,54 @@ describe('글자별 편집', () => {
     expect(wm.boxes[1].x).toBeGreaterThan(wm.boxes[0].x);
   });
 });
+
+import { selectableJamoIn, variantNames } from './jamo';
+import { mutate, mulberry32 } from './variation';
+
+describe('뼈대 모양 선택', () => {
+  const jamoP = { ...DEFAULT_PARAMS, engine: 'jamo' as const };
+  it('모양을 바꾸면 그 자모가 쓰인 글자만 달라진다', () => {
+    const a = buildWordmark('가나', jamoP)!;
+    const b = buildWordmark('가나', { ...jamoP, variants: { ㄱ: 2 } })!;
+    expect(b.paths[0]).not.toEqual(a.paths[0]);
+    expect(b.paths[1]).toEqual(a.paths[1]);
+  });
+  it('이 글자만 고른 모양이 전체 설정보다 우선한다', () => {
+    const wm = buildWordmark('가가', { ...jamoP, variants: { ㄱ: 1 }, glyphs: { 1: { Lv: 2 } } })!;
+    const plain = buildWordmark('가가', { ...jamoP, variants: { ㄱ: 1 } })!;
+    expect(wm.paths[0]).toEqual(plain.paths[0]);
+    expect(wm.paths[1]).not.toEqual(plain.paths[1]);
+  });
+  it('모든 자모의 모든 모양이 오류 없이 유한한 좌표로 그려진다', () => {
+    const syllables = 'ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎ';
+    for (const c of syllables) {
+      for (let i = 0; i < Math.max(1, variantNames(c).length); i++) {
+        const wm = buildWordmark(`${c}`, { ...jamoP, variants: { [c]: i } });
+        expect(wm, `${c}#${i}`).not.toBeNull();
+        expect(Number.isFinite(wm!.bbox.w)).toBe(true);
+      }
+    }
+    for (const c of 'ㅏㅓㅣㅗㅜㅡ') {
+      for (let i = 0; i < variantNames(c).length; i++) {
+        const wm = buildWordmark(`고과워의`, { ...jamoP, variants: { [c]: i } })!;
+        expect(Number.isFinite(wm.bbox.w)).toBe(true);
+      }
+    }
+  });
+  it('텍스트에 쓰인 자모 중 모양을 고를 수 있는 것만 나열한다', () => {
+    const list = selectableJamoIn('온하루');
+    expect(list).toContain('ㄴ');
+    expect(list).toContain('ㅎ');
+    expect(list).toContain('ㅏ');
+    expect(list).not.toContain('ㅇ'); // 모양이 하나뿐
+    expect(list).not.toContain('ㅁ');
+  });
+  it('변주 탐색이 텍스트에 쓰인 자모의 모양을 바꾼다', () => {
+    let changed = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const m = mutate(jamoP, mulberry32(seed), [], '고요');
+      if (Object.keys(m.variants).length > 0) changed++;
+    }
+    expect(changed).toBeGreaterThan(8);
+  });
+});

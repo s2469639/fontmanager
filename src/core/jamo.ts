@@ -15,7 +15,8 @@ type Rect = [number, number, number, number]; // x0, y0, x1, y1 (설계 좌표 0
 
 type Stroke =
   | { t: 'poly'; pts: Pt[]; closed?: boolean }
-  | { t: 'ring'; c: Pt; r: number };
+  | { t: 'ring'; c: Pt; r: number }
+  | { t: 'bez'; ops: BezOp[] };
 
 // ───────────────────────── 자모 표 ─────────────────────────
 
@@ -49,42 +50,169 @@ export function decompose(ch: string): Syllable | null {
 
 // ───────────────────────── 뼈대 정의 (0..1 상자 안) ─────────────────────────
 
+type BezOp = ['M', number, number] | ['L', number, number] | ['Q', number, number, number, number] | ['Z'];
+
 const line = (...pts: Pt[]): Stroke => ({ t: 'poly', pts });
+const box = (...pts: Pt[]): Stroke => ({ t: 'poly', pts, closed: true });
+const ring = (cx: number, cy: number, r: number): Stroke => ({ t: 'ring', c: [cx, cy], r });
+const bez = (...ops: BezOp[]): Stroke => ({ t: 'bez', ops });
 
-const CONSONANTS: Record<string, Stroke[]> = {
-  ㄱ: [line([0, 0], [1, 0], [1, 1])],
-  ㄴ: [line([0, 0], [0, 1], [1, 1])],
-  ㄷ: [line([1, 0], [0, 0], [0, 1], [1, 1])],
-  ㄹ: [line([0, 0], [1, 0], [1, 0.5], [0, 0.5], [0, 1], [1, 1])],
-  ㅁ: [{ t: 'poly', pts: [[0, 0], [1, 0], [1, 1], [0, 1]], closed: true }],
-  ㅂ: [line([0, 0], [0, 1], [1, 1], [1, 0]), line([0, 0.5], [1, 0.5])],
-  ㅅ: [line([0, 1], [0.5, 0], [1, 1])],
-  ㅇ: [{ t: 'ring', c: [0.5, 0.5], r: 0.5 }],
-  ㅈ: [line([0, 0.12], [1, 0.12]), line([0, 1], [0.5, 0.12], [1, 1])],
-  ㅊ: [line([0.3, 0], [0.7, 0]), line([0, 0.3], [1, 0.3]), line([0, 1], [0.5, 0.3], [1, 1])],
-  ㅋ: [line([0, 0], [1, 0], [1, 1]), line([0, 0.5], [1, 0.5])],
-  ㅌ: [line([1, 0], [0, 0], [0, 1], [1, 1]), line([0, 0.5], [1, 0.5])],
-  ㅍ: [line([0, 0], [1, 0]), line([0, 1], [1, 1]), line([0.28, 0], [0.28, 1]), line([0.72, 0], [0.72, 1])],
-  ㅎ: [line([0.3, 0], [0.7, 0]), line([0, 0.3], [1, 0.3]), { t: 'ring', c: [0.5, 0.76], r: 0.24 }],
+export interface Variant {
+  name: string;
+  strokes: Stroke[];
+}
+const v = (name: string, ...strokes: Stroke[]): Variant => ({ name, strokes });
+
+/**
+ * 자모별 뼈대 모양 목록. 0번이 기본 모양이고, 그 뒤가 선택할 수 있는 변형입니다.
+ * 좌표는 0..1 상자 안이며 y는 아래로 증가합니다.
+ */
+const CONS_VARIANTS: Record<string, Variant[]> = {
+  ㄱ: [
+    v('직각', line([0, 0], [1, 0], [1, 1])),
+    v('사선', line([0, 0], [1, 0], [0.78, 1])),
+    v('곡선', bez(['M', 0, 0], ['Q', 1, 0, 1, 1])),
+  ],
+  ㄴ: [
+    v('직각', line([0, 0], [0, 1], [1, 1])),
+    v('사선', line([0, 0], [0.22, 1], [1, 1])),
+    v('곡선', bez(['M', 0, 0], ['Q', 0, 1, 1, 1])),
+  ],
+  ㄷ: [
+    v('직각', line([1, 0], [0, 0], [0, 1], [1, 1])),
+    v('둥근', bez(['M', 1, 0], ['L', 0.4, 0], ['Q', 0, 0, 0, 0.5], ['Q', 0, 1, 0.4, 1], ['L', 1, 1])),
+  ],
+  ㄹ: [
+    v('직각', line([0, 0], [1, 0], [1, 0.5], [0, 0.5], [0, 1], [1, 1])),
+    v('흘림', line([0, 0], [1, 0], [0.88, 0.5], [0.12, 0.5], [0, 1], [1, 1])),
+  ],
+  ㅁ: [
+    v('사각', box([0, 0], [1, 0], [1, 1], [0, 1])),
+    v('둥근', bez(['M', 0.28, 0], ['L', 0.72, 0], ['Q', 1, 0, 1, 0.28], ['L', 1, 0.72], ['Q', 1, 1, 0.72, 1], ['L', 0.28, 1], ['Q', 0, 1, 0, 0.72], ['L', 0, 0.28], ['Q', 0, 0, 0.28, 0], ['Z'])),
+    v('마름모', box([0.5, 0], [1, 0.5], [0.5, 1], [0, 0.5])),
+    v('열린', line([0, 0.3], [0, 0], [1, 0], [1, 1], [0, 1], [0, 0.6])),
+  ],
+  ㅂ: [
+    v('기본', line([0, 0], [0, 1], [1, 1], [1, 0]), line([0, 0.5], [1, 0.5])),
+    v('닫힌', box([0, 0], [1, 0], [1, 1], [0, 1]), line([0, 0.5], [1, 0.5])),
+  ],
+  ㅅ: [
+    v('기본', line([0, 1], [0.5, 0], [1, 1])),
+    v('갈라진', line([0.5, 0], [0, 1]), line([0.4, 0.3], [1, 1])),
+    v('곡선', bez(['M', 0, 1], ['Q', 0.5, -1, 1, 1])),
+  ],
+  ㅇ: [v('기본', ring(0.5, 0.5, 0.5))],
+  ㅈ: [
+    v('기본', line([0, 0.12], [1, 0.12]), line([0, 1], [0.5, 0.12], [1, 1])),
+    v('갈라진', line([0, 0.12], [1, 0.12]), line([0.5, 0.12], [0, 1]), line([0.42, 0.45], [1, 1])),
+    v('곡선', line([0, 0.12], [1, 0.12]), bez(['M', 0, 1], ['Q', 0.5, -0.76, 1, 1])),
+  ],
+  ㅊ: [
+    v('기본', line([0.3, 0], [0.7, 0]), line([0, 0.3], [1, 0.3]), line([0, 1], [0.5, 0.3], [1, 1])),
+    v('갈라진', line([0.3, 0], [0.7, 0]), line([0, 0.3], [1, 0.3]), line([0.5, 0.3], [0, 1]), line([0.42, 0.58], [1, 1])),
+  ],
+  ㅋ: [
+    v('기본', line([0, 0], [1, 0], [1, 1]), line([0, 0.5], [1, 0.5])),
+    v('짧은 줄', line([0, 0], [1, 0], [1, 1]), line([0.38, 0.5], [1, 0.5])),
+  ],
+  ㅌ: [
+    v('기본', line([1, 0], [0, 0], [0, 1], [1, 1]), line([0, 0.5], [1, 0.5])),
+    v('짧은 줄', line([1, 0], [0, 0], [0, 1], [1, 1]), line([0, 0.5], [0.66, 0.5])),
+  ],
+  ㅍ: [
+    v('기본', line([0, 0], [1, 0]), line([0, 1], [1, 1]), line([0.28, 0], [0.28, 1]), line([0.72, 0], [0.72, 1])),
+    v('안쪽 줄', line([0, 0], [1, 0]), line([0, 1], [1, 1]), line([0.25, 0.1], [0.25, 0.9]), line([0.75, 0.1], [0.75, 0.9])),
+  ],
+  ㅎ: [
+    v('기본', line([0.3, 0], [0.7, 0]), line([0, 0.3], [1, 0.3]), ring(0.5, 0.76, 0.24)),
+    v('큰 고리', line([0.3, 0], [0.7, 0]), line([0, 0.26], [1, 0.26]), ring(0.5, 0.68, 0.32)),
+  ],
 };
 
-/** 단일 모음의 뼈대. 겹모음은 아래 COMPOUND로 조합합니다. */
-const VOWELS: Record<string, Stroke[]> = {
-  ㅏ: [line([0.4, 0], [0.4, 1]), line([0.4, 0.5], [1, 0.5])],
-  ㅐ: [line([0.25, 0], [0.25, 1]), line([0.25, 0.5], [0.58, 0.5]), line([0.78, 0], [0.78, 1])],
-  ㅑ: [line([0.4, 0], [0.4, 1]), line([0.4, 0.3], [1, 0.3]), line([0.4, 0.7], [1, 0.7])],
-  ㅒ: [line([0.25, 0], [0.25, 1]), line([0.25, 0.3], [0.58, 0.3]), line([0.25, 0.7], [0.58, 0.7]), line([0.78, 0], [0.78, 1])],
-  ㅓ: [line([0.6, 0], [0.6, 1]), line([0, 0.5], [0.6, 0.5])],
-  ㅔ: [line([0.42, 0], [0.42, 1]), line([0, 0.5], [0.42, 0.5]), line([0.78, 0], [0.78, 1])],
-  ㅕ: [line([0.6, 0], [0.6, 1]), line([0, 0.3], [0.6, 0.3]), line([0, 0.7], [0.6, 0.7])],
-  ㅖ: [line([0.42, 0], [0.42, 1]), line([0, 0.3], [0.42, 0.3]), line([0, 0.7], [0.42, 0.7]), line([0.78, 0], [0.78, 1])],
-  ㅣ: [line([0.5, 0], [0.5, 1])],
-  ㅗ: [line([0, 0.65], [1, 0.65]), line([0.5, 0.65], [0.5, 0])],
-  ㅛ: [line([0, 0.65], [1, 0.65]), line([0.3, 0.65], [0.3, 0]), line([0.7, 0.65], [0.7, 0])],
-  ㅜ: [line([0, 0.35], [1, 0.35]), line([0.5, 0.35], [0.5, 1])],
-  ㅠ: [line([0, 0.35], [1, 0.35]), line([0.3, 0.35], [0.3, 1]), line([0.7, 0.35], [0.7, 1])],
-  ㅡ: [line([0, 0.5], [1, 0.5])],
+/** 단일 모음의 뼈대 모양 목록. 겹모음은 아래 COMPOUND로 조합합니다. */
+const VOWEL_VARIANTS: Record<string, Variant[]> = {
+  ㅏ: [
+    v('기본', line([0.4, 0], [0.4, 1]), line([0.4, 0.5], [1, 0.5])),
+    v('가지 위', line([0.4, 0], [0.4, 1]), line([0.4, 0.35], [1, 0.35])),
+    v('사선 가지', line([0.4, 0], [0.4, 1]), line([0.4, 0.62], [1, 0.34])),
+  ],
+  ㅐ: [v('기본', line([0.25, 0], [0.25, 1]), line([0.25, 0.5], [0.58, 0.5]), line([0.78, 0], [0.78, 1]))],
+  ㅑ: [v('기본', line([0.4, 0], [0.4, 1]), line([0.4, 0.3], [1, 0.3]), line([0.4, 0.7], [1, 0.7]))],
+  ㅒ: [v('기본', line([0.25, 0], [0.25, 1]), line([0.25, 0.3], [0.58, 0.3]), line([0.25, 0.7], [0.58, 0.7]), line([0.78, 0], [0.78, 1]))],
+  ㅓ: [
+    v('기본', line([0.6, 0], [0.6, 1]), line([0, 0.5], [0.6, 0.5])),
+    v('가지 위', line([0.6, 0], [0.6, 1]), line([0, 0.35], [0.6, 0.35])),
+    v('사선 가지', line([0.6, 0], [0.6, 1]), line([0, 0.34], [0.6, 0.62])),
+  ],
+  ㅔ: [v('기본', line([0.42, 0], [0.42, 1]), line([0, 0.5], [0.42, 0.5]), line([0.78, 0], [0.78, 1]))],
+  ㅕ: [v('기본', line([0.6, 0], [0.6, 1]), line([0, 0.3], [0.6, 0.3]), line([0, 0.7], [0.6, 0.7]))],
+  ㅖ: [v('기본', line([0.42, 0], [0.42, 1]), line([0, 0.3], [0.42, 0.3]), line([0, 0.7], [0.42, 0.7]), line([0.78, 0], [0.78, 1]))],
+  ㅣ: [
+    v('기본', line([0.5, 0], [0.5, 1])),
+    v('곡선', bez(['M', 0.62, 0], ['Q', 0.28, 0.5, 0.62, 1])),
+    v('사선', line([0.64, 0], [0.36, 1])),
+  ],
+  ㅗ: [
+    v('기본', line([0, 0.65], [1, 0.65]), line([0.5, 0.65], [0.5, 0])),
+    v('짧은 가지', line([0, 0.65], [1, 0.65]), line([0.5, 0.65], [0.5, 0.25])),
+  ],
+  ㅛ: [v('기본', line([0, 0.65], [1, 0.65]), line([0.3, 0.65], [0.3, 0]), line([0.7, 0.65], [0.7, 0]))],
+  ㅜ: [
+    v('기본', line([0, 0.35], [1, 0.35]), line([0.5, 0.35], [0.5, 1])),
+    v('짧은 가지', line([0, 0.35], [1, 0.35]), line([0.5, 0.35], [0.5, 0.75])),
+  ],
+  ㅠ: [v('기본', line([0, 0.35], [1, 0.35]), line([0.3, 0.35], [0.3, 1]), line([0.7, 0.35], [0.7, 1]))],
+  ㅡ: [
+    v('기본', line([0, 0.5], [1, 0.5])),
+    v('물결', bez(['M', 0, 0.5], ['Q', 0.25, 0.15, 0.5, 0.5], ['Q', 0.75, 0.85, 1, 0.5])),
+  ],
 };
+
+const CONSONANTS: Record<string, Stroke[]> = Object.fromEntries(
+  Object.entries(CONS_VARIANTS).map(([k, list]) => [k, list[0].strokes]),
+);
+const VOWELS: Record<string, Stroke[]> = Object.fromEntries(
+  Object.entries(VOWEL_VARIANTS).map(([k, list]) => [k, list[0].strokes]),
+);
+
+type Pick = (ch: string) => number;
+const pickOf = (fixed: number | undefined, map: Record<string, number> | undefined): Pick => (ch) =>
+  fixed ?? map?.[ch] ?? 0;
+
+function variantStrokes(table: Record<string, Variant[]>, ch: string, idx: number): Stroke[] | undefined {
+  const list = table[ch];
+  if (!list) return undefined;
+  return list[Math.max(0, Math.min(idx, list.length - 1))].strokes;
+}
+
+/** UI용: 이 자모에 고를 수 있는 뼈대 모양의 이름 목록 (모양이 하나뿐이면 빈 배열) */
+export function variantNames(ch: string): string[] {
+  const list = CONS_VARIANTS[ch] ?? VOWEL_VARIANTS[ch];
+  return list && list.length > 1 ? list.map((x) => x.name) : [];
+}
+
+/** 텍스트에 쓰인 자모 중 모양을 고를 수 있는 것들 (등장 순서, 중복 없음) */
+export function selectableJamoIn(text: string): string[] {
+  const out: string[] = [];
+  const add = (c: string) => {
+    if (variantNames(c).length && !out.includes(c)) out.push(c);
+  };
+  const addConsonant = (c: string) => (PAIRS[c] ? PAIRS[c].forEach(add) : add(c));
+  for (const ch of Array.from(text)) {
+    const syl = decompose(ch);
+    if (syl) {
+      addConsonant(syl.initial);
+      const comp = COMPOUND[syl.medial];
+      if (comp) {
+        add(comp[0]);
+        add(comp[1]);
+      } else add(syl.medial);
+      if (syl.final) addConsonant(syl.final);
+    } else if (ch in CONS_VARIANTS || ch in PAIRS) addConsonant(ch);
+    else if (ch in VOWEL_VARIANTS) add(ch);
+  }
+  return out;
+}
 
 /** 겹모음 = (가로 모음, 세로 모음). 가로 모음은 왼쪽 아래, 세로 모음은 오른쪽에 놓입니다. */
 const COMPOUND: Record<string, [string, string, number]> = {
@@ -155,6 +283,7 @@ interface Placed {
 }
 type PlacedStroke =
   | { t: 'poly'; pts: Pt[]; closed: boolean }
+  | { t: 'bez'; ops: BezOp[] }
   | { t: 'ring'; c: Pt; rx: number; ry: number; rot: number };
 
 function place(strokes: Stroke[], rect: Rect, out: PlacedStroke[], oAspect: boolean) {
@@ -167,6 +296,15 @@ function place(strokes: Stroke[], rect: Rect, out: PlacedStroke[], oAspect: bool
         t: 'poly',
         closed: !!s.closed,
         pts: s.pts.map(([nx, ny]) => [x0 + nx * w, y0 + ny * h] as Pt),
+      });
+    } else if (s.t === 'bez') {
+      const mx = (nx: number) => x0 + nx * w;
+      const my = (ny: number) => y0 + ny * h;
+      out.push({
+        t: 'bez',
+        ops: s.ops.map((o): BezOp =>
+          o[0] === 'Z' ? o : o[0] === 'Q' ? ['Q', mx(o[1]), my(o[2]), mx(o[3]), my(o[4])] : [o[0], mx(o[1]), my(o[2])],
+        ),
       });
     } else {
       const m = Math.min(w, h);
@@ -182,21 +320,21 @@ function place(strokes: Stroke[], rect: Rect, out: PlacedStroke[], oAspect: bool
   }
 }
 
-function placeConsonant(name: string, rect: Rect, out: PlacedStroke[]) {
+function placeConsonant(name: string, rect: Rect, out: PlacedStroke[], pick: Pick) {
   const pair = PAIRS[name];
   if (pair) {
     const w = rect[2] - rect[0];
     const gap = w * 0.08;
     const half = (w - gap) / 2;
-    placeConsonant(pair[0], [rect[0], rect[1], rect[0] + half, rect[3]], out);
-    placeConsonant(pair[1], [rect[2] - half, rect[1], rect[2], rect[3]], out);
+    placeConsonant(pair[0], [rect[0], rect[1], rect[0] + half, rect[3]], out, pick);
+    placeConsonant(pair[1], [rect[2] - half, rect[1], rect[2], rect[3]], out, pick);
     return;
   }
-  const strokes = CONSONANTS[name];
+  const strokes = variantStrokes(CONS_VARIANTS, name, pick(name));
   if (strokes) place(strokes, rect, out, true);
 }
 
-function placeVowel(name: string, rect: Rect, out: PlacedStroke[]) {
+function placeVowel(name: string, rect: Rect, out: PlacedStroke[], pick: Pick) {
   const comp = COMPOUND[name];
   if (comp) {
     const [horiz, vert, vx] = comp;
@@ -204,11 +342,11 @@ function placeVowel(name: string, rect: Rect, out: PlacedStroke[]) {
     const w = x1 - x0;
     const h = y1 - y0;
     // 가로 모음은 아래쪽, 세로 모음은 오른쪽 전체 높이
-    place(VOWELS[horiz], [x0, y0 + h * 0.5, x0 + w * (vx + 0.08), y1], out, false);
-    place(VOWELS[vert], [x0 + w * vx, y0, x1, y1], out, false);
+    place(variantStrokes(VOWEL_VARIANTS, horiz, pick(horiz))!, [x0, y0 + h * 0.5, x0 + w * (vx + 0.08), y1], out, false);
+    place(variantStrokes(VOWEL_VARIANTS, vert, pick(vert))!, [x0 + w * vx, y0, x1, y1], out, false);
     return;
   }
-  const strokes = VOWELS[name];
+  const strokes = variantStrokes(VOWEL_VARIANTS, name, pick(name));
   if (strokes) place(strokes, rect, out, false);
 }
 
@@ -230,14 +368,33 @@ function adjustStrokes(strokes: PlacedStroke[], rect: Rect, adj?: Partial<PartAd
     const py = (y - cy) * scale;
     return [cx + px * cos - py * sin + dx, cy + px * sin + py * cos + dy];
   };
-  return strokes.map((s): PlacedStroke =>
-    s.t === 'poly'
-      ? { ...s, pts: s.pts.map(tp) }
-      : { ...s, c: tp(s.c), rx: s.rx * scale, ry: s.ry * scale, rot: s.rot + rot },
-  );
+  return strokes.map((s): PlacedStroke => {
+    if (s.t === 'poly') return { ...s, pts: s.pts.map(tp) };
+    if (s.t === 'bez') {
+      return {
+        t: 'bez',
+        ops: s.ops.map((o): BezOp => {
+          if (o[0] === 'Z') return o;
+          if (o[0] === 'Q') {
+            const a = tp([o[1], o[2]]);
+            const b = tp([o[3], o[4]]);
+            return ['Q', a[0], a[1], b[0], b[1]];
+          }
+          const a = tp([o[1], o[2]]);
+          return [o[0], a[0], a[1]];
+        }),
+      };
+    }
+    return { ...s, c: tp(s.c), rx: s.rx * scale, ry: s.ry * scale, rot: s.rot + rot };
+  });
 }
 
-export function assemble(syl: Syllable, jp: JamoParams, ov?: GlyphOverride): Placed {
+export function assemble(
+  syl: Syllable,
+  jp: JamoParams,
+  ov?: GlyphOverride,
+  variants?: Record<string, number>,
+): Placed {
   const kind = vowelKind(syl.medial);
   const lay = layoutFor(kind, syl.final !== '', CLUSTERS.has(syl.final));
   let L = scaleRect(lay.L, jp.consonantScale);
@@ -256,9 +413,9 @@ export function assemble(syl: Syllable, jp: JamoParams, ov?: GlyphOverride): Pla
     fn(rect, tmp);
     strokes.push(...adjustStrokes(tmp, rect, adj));
   };
-  part((r, o) => placeConsonant(syl.initial, r, o), L, ov?.L);
-  part((r, o) => placeVowel(syl.medial, r, o), V, ov?.V);
-  if (syl.final && lay.T) part((r, o) => placeConsonant(syl.final, r, o), lay.T, ov?.T);
+  part((r, o) => placeConsonant(syl.initial, r, o, pickOf(ov?.Lv, variants)), L, ov?.L);
+  part((r, o) => placeVowel(syl.medial, r, o, pickOf(ov?.Vv, variants)), V, ov?.V);
+  if (syl.final && lay.T) part((r, o) => placeConsonant(syl.final, r, o, pickOf(ov?.Tv, variants)), lay.T, ov?.T);
   return { strokes };
 }
 
@@ -276,16 +433,17 @@ export function partsOf(ch: string): { L?: string; V?: string; T?: string; hasRi
 }
 
 /** 한글 낱자(ㄱ, ㅏ 등)만 입력했을 때의 조립 */
-function assembleLoose(ch: string, jp: JamoParams): Placed | null {
+function assembleLoose(ch: string, jp: JamoParams, variants?: Record<string, number>): Placed | null {
   const strokes: PlacedStroke[] = [];
+  const pick = pickOf(undefined, variants);
   if (ch in CONSONANTS || ch in PAIRS) {
-    placeConsonant(ch, scaleRect([20, 20, 80, 80], jp.consonantScale), strokes);
+    placeConsonant(ch, scaleRect([20, 20, 80, 80], jp.consonantScale), strokes, pick);
     return { strokes };
   }
   if (ch in VOWELS || ch in COMPOUND) {
     const kind = vowelKind(ch);
     const rect: Rect = kind === 'horizontal' ? [0, 30, 100, 70] : kind === 'vertical' ? [30, 0, 70, 100] : [0, 0, 100, 100];
-    placeVowel(ch, scaleRect(rect, jp.vowelScale), strokes);
+    placeVowel(ch, scaleRect(rect, jp.vowelScale), strokes, pick);
     return { strokes };
   }
   return null;
@@ -425,9 +583,15 @@ export function isJamoDrawable(ch: string): boolean {
  * 글자 하나를 선 경로로 조립합니다. index는 글자 순서(bounce 효과용).
  * 한글이 아닌 글자는 null.
  */
-export function buildJamoGlyph(ch: string, jp: JamoParams, index: number, ov?: GlyphOverride): GlyphShape | null {
+export function buildJamoGlyph(
+  ch: string,
+  jp: JamoParams,
+  index: number,
+  ov?: GlyphOverride,
+  variants?: Record<string, number>,
+): GlyphShape | null {
   const syl = decompose(ch);
-  const placed = syl ? assemble(syl, jp, ov) : assembleLoose(ch, jp);
+  const placed = syl ? assemble(syl, jp, ov, variants) : assembleLoose(ch, jp, variants);
   if (!placed) return null;
   const radius = jp.roundness * 14;
   // 이 글자만 ㅇ 모양·열림이 다를 수 있습니다.
@@ -435,8 +599,36 @@ export function buildJamoGlyph(ch: string, jp: JamoParams, index: number, ov?: G
   const cmds: Cmd[] = [];
   for (const s of placed.strokes) {
     if (s.t === 'poly') cmds.push(...roundedPoly(s.pts, s.closed, radius));
+    else if (s.t === 'bez') cmds.push(...(s.ops as Cmd[]));
     else cmds.push(...ringCmds(s.c, s.rx, s.ry, s.rot, local, Math.min(radius, Math.min(s.rx, s.ry) * 0.9)));
   }
   const bounce = jp.bounce * 1000 * (index % 2 === 0 ? 1 : -1);
   return { char: ch, cmds: toGlyphSpace(cmds, bounce), advance: CELL, fromFallback: false };
+}
+
+/** UI 미리보기: 한 자모의 한 가지 모양을 0..100 상자의 SVG 경로 문자열로 만듭니다. */
+export function previewPath(ch: string, idx: number): string {
+  const strokes: PlacedStroke[] = [];
+  const pick: Pick = () => idx;
+  const rect: Rect = [16, 16, 84, 84];
+  if (ch in CONS_VARIANTS) placeConsonant(ch, rect, strokes, pick);
+  else placeVowel(ch, rect, strokes, pick);
+  const jp = { circleGap: 0, oShape: 'circle' } as JamoParams;
+  const cmds: Cmd[] = [];
+  for (const s of strokes) {
+    if (s.t === 'poly') cmds.push(...roundedPoly(s.pts, s.closed, 0));
+    else if (s.t === 'bez') cmds.push(...(s.ops as Cmd[]));
+    else cmds.push(...ringCmds(s.c, s.rx, s.ry, s.rot, jp, 0));
+  }
+  const f = (n: number) => Math.round(n * 10) / 10;
+  return cmds
+    .map((c) => (c[0] === 'Z' ? 'Z' : c[0] + c.slice(1).map((n) => f(n as number)).join(' ')))
+    .join('');
+}
+
+/** 글자별 편집용: 한 부분(예: ㄲ, ㅘ, ㄺ)에서 모양을 고를 수 있는 대표 자모 */
+export function partVariantChar(part: string): string | undefined {
+  const comp = COMPOUND[part];
+  const cands = comp ? [comp[0], comp[1]] : PAIRS[part] ? [...PAIRS[part]] : [part];
+  return cands.find((c) => variantNames(c).length > 0);
 }

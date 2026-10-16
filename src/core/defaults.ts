@@ -16,6 +16,7 @@ export const DEFAULT_PARAMS: Params = {
   engine: 'font',
   jamo: DEFAULT_JAMO,
   glyphs: {},
+  variants: {},
   fontId: 'pretendard',
   weight: 0.5,
   width: 100,

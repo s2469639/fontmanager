@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../state/store';
-import { isJamoDrawable, partsOf } from '../core/jamo';
+import { isJamoDrawable, partsOf, partVariantChar, previewPath, selectableJamoIn, variantNames } from '../core/jamo';
 import { LIMITS } from '../core/defaults';
 import { FONTS, getFont } from '../data/fonts';
 import { axisValue } from '../core/fontStore';
@@ -130,6 +130,13 @@ export function ControlPanel() {
         </div>
         </>}
       </section>
+
+      {jamo && (
+        <section className="panel__section">
+          <h2 className="panel__title">자소 모양 (전체 적용)</h2>
+          <ShapePicker p={p} set={set} />
+        </section>
+      )}
 
       {jamo && (
         <section className="panel__section">
@@ -412,6 +419,36 @@ function GlyphEditor({ p, set }: { p: Params; set: (patch: Partial<Params>) => v
             onChange={setPart}
           />
           <div style={{ height: 14 }} />
+          {(() => {
+            const partChar = info[activePart];
+            const vc = partChar ? partVariantChar(partChar) : undefined;
+            if (!vc) return null;
+            const key = (activePart + 'v') as 'Lv' | 'Vv' | 'Tv';
+            const cur = ov[key];
+            return (
+              <div className="field">
+                <span className="field__label">이 글자의 {vc} 모양</span>
+                <div className="shaperow__opts" role="radiogroup" aria-label={`${vc} 모양 (이 글자만)`}>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={cur === undefined}
+                    className={cur === undefined ? 'variantchip variantchip--text is-on' : 'variantchip variantchip--text'}
+                    onClick={() => {
+                      const next = { ...ov };
+                      delete next[key];
+                      write(next);
+                    }}
+                  >
+                    <span>전체 설정</span>
+                  </button>
+                  {variantNames(vc).map((name, i) => (
+                    <VariantChip key={name} ch={vc} idx={i} label={name} on={cur === i} onClick={() => write({ ...ov, [key]: i })} />
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           <Slider
             label="크기"
             value={adj.scale ?? 1}
@@ -504,6 +541,63 @@ function GlyphEditor({ p, set }: { p: Params; set: (patch: Partial<Params>) => v
           모든 글자 수정 되돌리기
         </button>
       )}
+    </>
+  );
+}
+
+/** 뼈대 모양 하나를 보여 주는 작은 미리보기 버튼 */
+function VariantChip({ ch, idx, label, on, onClick }: { ch: string; idx: number; label: string; on: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={on}
+      aria-label={`${ch} ${label}`}
+      title={label}
+      className={on ? 'variantchip is-on' : 'variantchip'}
+      onClick={onClick}
+    >
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <path
+          d={previewPath(ch, idx)}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={8}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+/** 텍스트에 쓰인 자모마다 뼈대 모양을 고릅니다. 같은 자모가 쓰인 모든 글자에 적용됩니다. */
+function ShapePicker({ p, set }: { p: Params; set: (patch: Partial<Params>) => void }) {
+  const text = useStore((s) => s.text);
+  const chars = selectableJamoIn(text);
+  if (chars.length === 0) return <p className="field__note">이 이름에는 모양을 고를 수 있는 자모가 없어요.</p>;
+  const choose = (c: string, i: number) => {
+    const variants = { ...p.variants };
+    if (i === 0) delete variants[c];
+    else variants[c] = i;
+    set({ variants });
+  };
+  return (
+    <>
+      <p className="field__note" style={{ marginTop: 0, marginBottom: 10 }}>
+        자음·모음의 뼈대 모양을 고르면 그 자모가 들어간 모든 글자가 바뀌어요. 글자 하나만 바꾸려면 아래 ‘글자별 편집’을 쓰세요.
+      </p>
+      {chars.map((c) => (
+        <div className="shaperow" key={c}>
+          <span className="shaperow__ch">{c}</span>
+          <div className="shaperow__opts" role="radiogroup" aria-label={`${c} 모양`}>
+            {variantNames(c).map((name, i) => (
+              <VariantChip key={name} ch={c} idx={i} label={name} on={(p.variants[c] ?? 0) === i} onClick={() => choose(c, i)} />
+            ))}
+          </div>
+        </div>
+      ))}
     </>
   );
 }
