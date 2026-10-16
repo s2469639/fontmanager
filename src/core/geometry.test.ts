@@ -189,3 +189,40 @@ describe('뼈대 모양 선택', () => {
     expect(changed).toBeGreaterThan(8);
   });
 });
+
+describe('획 연결', () => {
+  const jamoP = { ...DEFAULT_PARAMS, engine: 'jamo' as const };
+  const withJ = (j: Partial<typeof DEFAULT_JAMO>) => ({ ...jamoP, jamo: { ...DEFAULT_JAMO, ...j } });
+  it('연결을 끄면 기존 결과와 같다', () => {
+    const a = buildWordmark('온하루', jamoP)!;
+    const b = buildWordmark('온하루', withJ({ link: 0, linkMode: 'curve' }))!;
+    expect(b.paths).toEqual(a.paths);
+  });
+  it('직선 잇기는 선을 더하고 곡선 잇기는 다른 모양을 만든다', () => {
+    const off = buildWordmark('요', withJ({ link: 0 }))!;
+    const br = buildWordmark('요', withJ({ link: 1, linkMode: 'bridge', gap: 8 }))!;
+    const cu = buildWordmark('요', withJ({ link: 1, linkMode: 'curve', gap: 8 }))!;
+    expect(br.paths[0].length).toBeGreaterThan(off.paths[0].length);
+    expect(cu.paths[0]).not.toEqual(br.paths[0]);
+  });
+  it('연결 정도가 클수록 더 많은 곳이 이어진다', () => {
+    const small = buildWordmark('한글', withJ({ link: 0.2, gap: 6 }))!;
+    const big = buildWordmark('한글', withJ({ link: 1, gap: 6 }))!;
+    const count = (w: typeof small) => w.paths.reduce((n, d) => n + (d.match(/M/g)?.length ?? 0), 0);
+    expect(count(big)).toBeGreaterThanOrEqual(count(small));
+  });
+  it('글자별 연결 값이 전체 설정보다 우선한다', () => {
+    const wm = buildWordmark('요요', { ...withJ({ link: 1, linkMode: 'bridge', gap: 8 }), glyphs: { 1: { link: 0 } } })!;
+    expect(wm.paths[0].length).toBeGreaterThan(wm.paths[1].length);
+  });
+  it('모든 연결 방식에서 11,172자가 유한한 좌표로 조립된다', () => {
+    for (const linkMode of ['bridge', 'curve', 'snap'] as const) {
+      let bad = 0;
+      for (let cp = 0xac00; cp <= 0xd7a3; cp += 7) {
+        const g = buildJamoGlyph(String.fromCodePoint(cp), { ...DEFAULT_JAMO, link: 1, linkMode, gap: 6 }, 0);
+        if (!g || g.cmds.some((c) => c.slice(1).some((n) => !Number.isFinite(n as number)))) bad++;
+      }
+      expect(bad).toBe(0);
+    }
+  });
+});

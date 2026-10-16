@@ -2,6 +2,8 @@ export type Corner = 'sharp' | 'round' | 'bevel';
 
 export type Cap = 'round' | 'butt' | 'square';
 export type OShape = 'circle' | 'square' | 'diamond';
+/** 획 연결 방식: snap은 자소를 움직여 붙이고, bridge는 직선으로, curve는 곡선으로 잇습니다. */
+export type LinkMode = 'snap' | 'bridge' | 'curve';
 /** font: 글꼴 윤곽선 기반 / jamo: 자음·모음을 선으로 직접 조립(프로토타입) */
 export type Engine = 'font' | 'jamo';
 
@@ -23,6 +25,9 @@ export interface JamoParams {
   circleGap: number;
   /** 글자마다 위아래로 어긋나는 정도(em) */
   bounce: number;
+  /** 획 연결: 이 거리 안의 인접한 자소를 이어 줍니다. 0이면 끔 (0..1) */
+  link: number;
+  linkMode: LinkMode;
 }
 
 /** 한 글자 안의 초성/모음/받침 하나를 따로 조절하는 값 */
@@ -45,6 +50,8 @@ export interface GlyphOverride {
   circleGap?: number;
   /** 이 글자의 선 굵기 배율 */
   stroke?: number;
+  /** 이 글자의 획 연결 정도 (0이면 이 글자만 끔) */
+  link?: number;
   /** 이 글자의 초성/모음/받침 뼈대 모양 번호 (전체 설정보다 우선) */
   Lv?: number;
   Vv?: number;

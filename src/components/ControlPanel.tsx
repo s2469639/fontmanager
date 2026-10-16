@@ -5,7 +5,7 @@ import { LIMITS } from '../core/defaults';
 import { FONTS, getFont } from '../data/fonts';
 import { axisValue } from '../core/fontStore';
 import { Segmented, Slider, EffectCard } from './Controls';
-import type { Cap, Corner, Engine, GlyphOverride, JamoParams, OShape, Params, PartAdjust } from '../core/types';
+import type { Cap, Corner, Engine, GlyphOverride, JamoParams, LinkMode, OShape, Params, PartAdjust } from '../core/types';
 
 const SWATCHES = ['#111111', '#ffffff', '#ff3b1d', '#1f3bff', '#0a8f5b', '#e8a900'];
 
@@ -310,6 +310,34 @@ function JamoControls({ p, setJ, set }: JamoControlsProps) {
         display={`${j.gap > 0 ? '+' : ''}${j.gap}`}
         onChange={(v) => setJ({ gap: v })}
       />
+      <Slider
+        label="획 연결"
+        value={j.link}
+        {...LIMITS.link}
+        display={j.link <= 0.01 ? '끔' : `${Math.round(j.link * 100)}%`}
+        hint="가까이 있는 초성·모음·받침을 선으로 이어 줍니다. 값이 클수록 먼 곳까지 이어요."
+        onChange={(v) => setJ({ link: v })}
+      />
+      {j.link > 0.01 && (
+        <div className="field">
+          <span className="field__label">연결 방식</span>
+          <Segmented<LinkMode>
+            label="연결 방식"
+            value={j.linkMode}
+            options={[
+              { value: 'bridge', label: '직선 잇기' },
+              { value: 'curve', label: '곡선 잇기' },
+              { value: 'snap', label: '붙이기' },
+            ]}
+            onChange={(v) => setJ({ linkMode: v })}
+          />
+          <p className="field__note">
+            {j.linkMode === 'snap'
+              ? '자소를 살짝 움직여 서로 닿게 합니다. 가까운 곳만 붙습니다.'
+              : '끊어진 두 곳 사이에 선을 하나 더 긋습니다.'}
+          </p>
+        </div>
+      )}
       <div className="field">
         <span className="field__label">ㅇ의 모양</span>
         <Segmented<OShape>
@@ -516,6 +544,14 @@ function GlyphEditor({ p, set }: { p: Params; set: (patch: Partial<Params>) => v
             </div>
           )}
 
+          <Slider
+            label="이 글자의 획 연결"
+            value={ov.link ?? p.jamo.link}
+            {...LIMITS.link}
+            display={ov.link === undefined ? '전체 설정' : ov.link <= 0.01 ? '끔' : `${Math.round(ov.link * 100)}%`}
+            hint="이 글자만 연결 정도를 따로 정합니다."
+            onChange={(v) => write({ ...ov, link: v })}
+          />
           <Slider
             label="이 글자의 선 굵기"
             value={ov.stroke ?? 1}

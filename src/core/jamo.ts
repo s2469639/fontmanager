@@ -280,6 +280,8 @@ function shiftRect(r: Rect, dx: number, dy: number): Rect {
 
 interface Placed {
   strokes: PlacedStroke[];
+  /** 초성/모음/받침 순서로 나뉜 스트로크 (획 연결 계산용) */
+  parts: PlacedStroke[][];
 }
 type PlacedStroke =
   | { t: 'poly'; pts: Pt[]; closed: boolean }
@@ -408,15 +410,18 @@ export function assemble(
     if (kind === 'horizontal') V = shiftRect(V, 0, g / 2);
   }
   const strokes: PlacedStroke[] = [];
+  const parts: PlacedStroke[][] = [];
   const part = (fn: (r: Rect, out: PlacedStroke[]) => void, rect: Rect, adj?: Partial<PartAdjust>) => {
     const tmp: PlacedStroke[] = [];
     fn(rect, tmp);
-    strokes.push(...adjustStrokes(tmp, rect, adj));
+    const adjusted = adjustStrokes(tmp, rect, adj);
+    strokes.push(...adjusted);
+    parts.push(adjusted);
   };
   part((r, o) => placeConsonant(syl.initial, r, o, pickOf(ov?.Lv, variants)), L, ov?.L);
   part((r, o) => placeVowel(syl.medial, r, o, pickOf(ov?.Vv, variants)), V, ov?.V);
   if (syl.final && lay.T) part((r, o) => placeConsonant(syl.final, r, o, pickOf(ov?.Tv, variants)), lay.T, ov?.T);
-  return { strokes };
+  return { strokes, parts };
 }
 
 /** UI에서 쓰는 정보: 한 글자가 어떤 부분으로 이루어져 있고, 고리(ㅇ·ㅎ)가 있는지 */
@@ -438,13 +443,13 @@ function assembleLoose(ch: string, jp: JamoParams, variants?: Record<string, num
   const pick = pickOf(undefined, variants);
   if (ch in CONSONANTS || ch in PAIRS) {
     placeConsonant(ch, scaleRect([20, 20, 80, 80], jp.consonantScale), strokes, pick);
-    return { strokes };
+    return { strokes, parts: [strokes] };
   }
   if (ch in VOWELS || ch in COMPOUND) {
     const kind = vowelKind(ch);
     const rect: Rect = kind === 'horizontal' ? [0, 30, 100, 70] : kind === 'vertical' ? [30, 0, 70, 100] : [0, 0, 100, 100];
     placeVowel(ch, scaleRect(rect, jp.vowelScale), strokes, pick);
-    return { strokes };
+    return { strokes, parts: [strokes] };
   }
   return null;
 }
@@ -583,6 +588,163 @@ export function isJamoDrawable(ch: string): boolean {
  * 글자 하나를 선 경로로 조립합니다. index는 글자 순서(bounce 효과용).
  * 한글이 아닌 글자는 null.
  */
+// ───────────────────────── 획 연결 ─────────────────────────
+
+/** 획 연결이 닿을 수 있는 최대 거리(설계 단위) = link × 이 값 */
+const LINK_MAX_REACH = 30;
+
+interface Geo {
+  segs: [Pt, Pt][];
+  /** 연결을 시작할 수 있는 점: 열린 획의 양 끝, 닫힌 도형의 상하좌우 끝점 */
+  anchors: Pt[];
+}
+
+/** 경로 명령을 짧은 선분들로 쪼개고, 연결 후보점을 모읍니다. */
+function geoOf(cmds: Cmd[]): Geo {
+  const segs: [Pt, Pt][] = [];
+  const anchors: Pt[] = [];
+  let sub: Pt[] = [];
+  let closed = false;
+  const flush = () => {
+    if (sub.length < 2) {
+      sub = [];
+      closed = false;
+      return;
+    }
+    for (let i = 1; i < sub.length; i++) segs.push([sub[i - 1], sub[i]]);
+    const first = sub[0];
+    const last = sub[sub.length - 1];
+    const loops = closed || dist(first, last) < 0.5;
+    if (loops) {
+      let top = sub[0], bottom = sub[0], left = sub[0], right = sub[0];
+      for (const p of sub) {
+        if (p[1] < top[1]) top = p;
+        if (p[1] > bottom[1]) bottom = p;
+        if (p[0] < left[0]) left = p;
+        if (p[0] > right[0]) right = p;
+      }
+      anchors.push(top, bottom, left, right);
+    } else anchors.push(first, last);
+    sub = [];
+    closed = false;
+  };
+  let cur: Pt = [0, 0];
+  for (const c of cmds) {
+    if (c[0] === 'M') {
+      flush();
+      cur = [c[1], c[2]];
+      sub = [cur];
+    } else if (c[0] === 'L') {
+      cur = [c[1], c[2]];
+      sub.push(cur);
+    } else if (c[0] === 'Q') {
+      for (let i = 1; i <= 8; i++) {
+        const t = i / 8;
+        const u = 1 - t;
+        sub.push([u * u * cur[0] + 2 * u * t * c[1] + t * t * c[3], u * u * cur[1] + 2 * u * t * c[2] + t * t * c[4]]);
+      }
+      cur = [c[3], c[4]];
+    } else if (c[0] === 'C') {
+      for (let i = 1; i <= 8; i++) {
+        const t = i / 8;
+        const u = 1 - t;
+        sub.push([
+          u * u * u * cur[0] + 3 * u * u * t * c[1] + 3 * u * t * t * c[3] + t * t * t * c[5],
+          u * u * u * cur[1] + 3 * u * u * t * c[2] + 3 * u * t * t * c[4] + t * t * t * c[6],
+        ]);
+      }
+      cur = [c[5], c[6]];
+    } else {
+      closed = true;
+      if (sub.length) sub.push(sub[0]);
+    }
+  }
+  flush();
+  return { segs, anchors };
+}
+
+function closestOnSegment(p: Pt, a: Pt, b: Pt): Pt {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1e-9) return a;
+  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2));
+  return [a[0] + dx * t, a[1] + dy * t];
+}
+
+interface Contact {
+  /** 연결점: from(앞 자소) 쪽과 to(뒤 자소) 쪽 */
+  a: Pt;
+  b: Pt;
+  d: number;
+}
+
+/** 두 자소 사이에서 가장 가까운 (끝점 → 다른 자소의 선) 쌍을 찾습니다. */
+function nearestContact(ga: Geo, gb: Geo): Contact | null {
+  let best: Contact | null = null;
+  const consider = (anchor: Pt, other: Geo, anchorIsA: boolean) => {
+    for (const [s0, s1] of other.segs) {
+      const q = closestOnSegment(anchor, s0, s1);
+      const d = dist(anchor, q);
+      if (!best || d < best.d) best = anchorIsA ? { a: anchor, b: q, d } : { a: q, b: anchor, d };
+    }
+  };
+  for (const an of ga.anchors) consider(an, gb, true);
+  for (const an of gb.anchors) consider(an, ga, false);
+  return best;
+}
+
+function translateCmds(cmds: Cmd[], dx: number, dy: number): Cmd[] {
+  return cmds.map((c): Cmd => {
+    switch (c[0]) {
+      case 'M':
+      case 'L':
+        return [c[0], c[1] + dx, c[2] + dy];
+      case 'Q':
+        return ['Q', c[1] + dx, c[2] + dy, c[3] + dx, c[4] + dy];
+      case 'C':
+        return ['C', c[1] + dx, c[2] + dy, c[3] + dx, c[4] + dy, c[5] + dx, c[6] + dy];
+      default:
+        return c;
+    }
+  });
+}
+
+/**
+ * 이웃한 자소(초성-모음, 모음-받침)가 reach 안에서 가까우면 이어 줍니다.
+ * snap: 뒤 자소를 움직여 닿게 하고, bridge/curve: 두 점 사이에 선을 하나 더 긋습니다.
+ */
+function linkParts(parts: Cmd[][], reach: number, mode: JamoParams['linkMode']): Cmd[] {
+  const bridges: Cmd[] = [];
+  if (reach <= 0.5) return bridges;
+  for (let i = 0; i + 1 < parts.length; i++) {
+    if (!parts[i].length || !parts[i + 1].length) continue;
+    const hit = nearestContact(geoOf(parts[i]), geoOf(parts[i + 1]));
+    if (!hit || hit.d < 0.5) continue;
+    // 붙이기는 자소를 움직이므로 잇기보다 짧은 거리만 허용해 글자가 엉키지 않게 합니다.
+    if (hit.d > (mode === 'snap' ? reach * 0.45 : reach)) continue;
+    if (mode === 'snap') {
+      parts[i + 1] = translateCmds(parts[i + 1], hit.a[0] - hit.b[0], hit.a[1] - hit.b[1]);
+    } else if (mode === 'curve') {
+      const mx = (hit.a[0] + hit.b[0]) / 2;
+      const my = (hit.a[1] + hit.b[1]) / 2;
+      // 직선에서 수직 방향으로 살짝 부풀린 곡선
+      const nx = -(hit.b[1] - hit.a[1]);
+      const ny = hit.b[0] - hit.a[0];
+      bridges.push(['M', hit.a[0], hit.a[1]], ['Q', mx + nx * 0.45, my + ny * 0.45, hit.b[0], hit.b[1]]);
+    } else {
+      bridges.push(['M', hit.a[0], hit.a[1]], ['L', hit.b[0], hit.b[1]]);
+    }
+  }
+  return bridges;
+}
+
+function strokeCmds(s: PlacedStroke, radius: number, local: JamoParams): Cmd[] {
+  if (s.t === 'poly') return roundedPoly(s.pts, s.closed, radius);
+  if (s.t === 'bez') return s.ops as Cmd[];
+  return ringCmds(s.c, s.rx, s.ry, s.rot, local, Math.min(radius, Math.min(s.rx, s.ry) * 0.9));
+}
+
 export function buildJamoGlyph(
   ch: string,
   jp: JamoParams,
@@ -596,12 +758,10 @@ export function buildJamoGlyph(
   const radius = jp.roundness * 14;
   // 이 글자만 ㅇ 모양·열림이 다를 수 있습니다.
   const local: JamoParams = { ...jp, oShape: ov?.oShape ?? jp.oShape, circleGap: ov?.circleGap ?? jp.circleGap };
-  const cmds: Cmd[] = [];
-  for (const s of placed.strokes) {
-    if (s.t === 'poly') cmds.push(...roundedPoly(s.pts, s.closed, radius));
-    else if (s.t === 'bez') cmds.push(...(s.ops as Cmd[]));
-    else cmds.push(...ringCmds(s.c, s.rx, s.ry, s.rot, local, Math.min(radius, Math.min(s.rx, s.ry) * 0.9)));
-  }
+  const partCmds = placed.parts.map((strokes) => strokes.flatMap((s) => strokeCmds(s, radius, local)));
+  const link = ov?.link ?? jp.link;
+  const bridges = linkParts(partCmds, link * LINK_MAX_REACH, jp.linkMode);
+  const cmds: Cmd[] = [...partCmds.flat(), ...bridges];
   const bounce = jp.bounce * 1000 * (index % 2 === 0 ? 1 : -1);
   return { char: ch, cmds: toGlyphSpace(cmds, bounce), advance: CELL, fromFallback: false };
 }

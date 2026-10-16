@@ -10,6 +10,8 @@ export const DEFAULT_JAMO: JamoParams = {
   oShape: 'circle',
   circleGap: 0,
   bounce: 0,
+  link: 0,
+  linkMode: 'bridge',
 };
 
 export const DEFAULT_PARAMS: Params = {
@@ -45,6 +47,7 @@ export const LIMITS = {
   gap: { min: -8, max: 24, step: 0.5 },
   circleGap: { min: 0, max: 0.5, step: 0.01 },
   bounce: { min: 0, max: 0.14, step: 0.005 },
+  link: { min: 0, max: 1, step: 0.01 },
   width: { min: 50, max: 150, step: 1 },
   tracking: { min: -0.3, max: 0.8, step: 0.01 },
   cornerAmount: { min: 0.1, max: 1, step: 0.01 },
