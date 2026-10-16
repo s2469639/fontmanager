@@ -44,7 +44,7 @@ export function Explore({ go }: { go: (r: Route) => void }) {
           <p className="screen__lead">
             {center
               ? '기준 시안에서 조금씩 달라진 이웃 시안들입니다. 마음에 드는 곳을 중심으로 계속 탐색하거나, 바로 편집하세요.'
-              : '네 가지 방향으로 같은 이름을 그려 봤어요. 끌리는 방향을 골라 주변을 더 탐색하거나, 바로 편집으로 넘어갈 수 있어요.'}
+              : '일곱 가지 방향으로 같은 이름을 그려 봤어요. 앞의 셋은 글꼴이 아니라 자음·모음을 직접 조립한 실험 방향입니다. 끌리는 방향을 골라 주변을 더 탐색하거나, 바로 편집으로 넘어갈 수 있어요.'}
           </p>
         </div>
         <div className="screen__tools">
@@ -54,7 +54,7 @@ export function Explore({ go }: { go: (r: Route) => void }) {
                 ↻ 다시 섞기
               </button>
               <button className="btn btn--ghost" onClick={() => setExplore(null, [], [], 1)}>
-                네 방향으로 돌아가기
+                처음 방향들로 돌아가기
               </button>
             </>
           )}
@@ -90,6 +90,7 @@ export function Explore({ go }: { go: (r: Route) => void }) {
               index={d.index}
               title={`${d.nameKo} · ${d.nameEn}`}
               tags={[d.note]}
+              chip={d.experimental ? '실험' : undefined}
               actions={
                 <>
                   <button

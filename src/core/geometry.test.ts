@@ -78,3 +78,36 @@ describe('모서리 굵기 보정', () => {
     expect(round.strokeWidth).toBeGreaterThan(0);
   });
 });
+
+import { decompose, buildJamoGlyph } from './jamo';
+import { DEFAULT_JAMO } from './defaults';
+
+describe('자소 조립 엔진', () => {
+  it('음절을 초성·중성·종성으로 나눈다', () => {
+    expect(decompose('고')).toEqual({ initial: 'ㄱ', medial: 'ㅗ', final: '' });
+    expect(decompose('닭')).toEqual({ initial: 'ㄷ', medial: 'ㅏ', final: 'ㄺ' });
+    expect(decompose('A')).toBeNull();
+  });
+  it('11,172자 모두 오류 없이 유한한 좌표로 조립된다', () => {
+    let bad = 0;
+    for (let cp = 0xac00; cp <= 0xd7a3; cp++) {
+      const g = buildJamoGlyph(String.fromCodePoint(cp), DEFAULT_JAMO, 0);
+      if (!g || g.cmds.length === 0) bad++;
+      else if (g.cmds.some((c) => c.slice(1).some((n) => !Number.isFinite(n as number)))) bad++;
+    }
+    expect(bad).toBe(0);
+  });
+  it('자소 조립 모드는 글꼴 없이 그리고, 한글이 아닌 글자는 알린다', () => {
+    const wm = buildWordmark('고요A', { ...DEFAULT_PARAMS, engine: 'jamo' })!;
+    expect(wm.paths).toHaveLength(2);
+    expect(wm.missingChars).toEqual(['A']);
+    expect(wm.fill).toBe(false);
+    expect(wm.strokeWidth).toBeGreaterThan(0);
+  });
+  it('선 굵기와 ㅇ 열기가 형상에 반영된다', () => {
+    const a = buildWordmark('아', { ...DEFAULT_PARAMS, engine: 'jamo' })!;
+    const b = buildWordmark('아', { ...DEFAULT_PARAMS, engine: 'jamo', jamo: { ...DEFAULT_JAMO, circleGap: 0.2, strokeW: 0.09 } })!;
+    expect(a.paths[0]).not.toEqual(b.paths[0]);
+    expect(b.strokeWidth).toBeGreaterThan(a.strokeWidth);
+  });
+});

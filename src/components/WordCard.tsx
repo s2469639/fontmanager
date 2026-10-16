@@ -12,17 +12,21 @@ interface Props {
   title: string;
   tags?: string[];
   pinned?: boolean;
+  /** 카드 오른쪽 위에 붙는 작은 표시 (예: 실험 기능) */
+  chip?: string;
   actions: ReactNode;
 }
 
-export function WordCard({ text, params, index, title, tags, pinned, actions }: Props) {
+export function WordCard({ text, params, index, title, tags, pinned, chip, actions }: Props) {
   const { wordmark, loading, error } = useWordmark(text, params);
   const fb = wordmark?.fallbackChars ?? [];
+  const missing = wordmark?.missingChars ?? [];
   return (
     <article className={pinned ? 'card is-pinned' : 'card'}>
       <div className="card__stage">
         <span className="card__index">{index}</span>
         {pinned && <span className="card__badge">기준 시안</span>}
+        {!pinned && chip && <span className="card__badge card__badge--soft">{chip}</span>}
         {wordmark ? (
           <WordmarkSVG
             layers={[{ wordmark, color: resolveColor(params.color, 'light') }]}
@@ -43,7 +47,12 @@ export function WordCard({ text, params, index, title, tags, pinned, actions }: 
             ))}
           </ul>
         )}
-        <p className="card__font">{getFont(params.fontId).nameKo}</p>
+        <p className="card__font">
+          {params.engine === 'jamo' ? '자소 조립 · 프로토타입' : getFont(params.fontId).nameKo}
+        </p>
+        {missing.length > 0 && (
+          <p className="card__note">‘{missing.join('')}’은(는) 이 방식으로 그릴 수 없어 뺐어요</p>
+        )}
         {fb.length > 0 && (
           <p className="card__note">
             ‘{fb.join('')}’ 은(는) 이 글꼴에 없어 {getFont('pretendard').nameKo}로 대체했어요

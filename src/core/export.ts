@@ -42,7 +42,8 @@ function drawPath(ctx: CanvasRenderingContext2D, d: string, wm: Wordmark, color:
   if (wm.strokeWidth > 0) {
     ctx.strokeStyle = color;
     ctx.lineWidth = wm.strokeWidth;
-    ctx.lineJoin = wm.linejoin === 'bevel' ? 'bevel' : wm.linejoin;
+    ctx.lineCap = wm.linecap;
+    ctx.lineJoin = wm.linejoin;
     ctx.miterLimit = wm.miterLimit;
     ctx.stroke(path);
   }

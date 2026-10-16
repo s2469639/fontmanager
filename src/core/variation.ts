@@ -1,4 +1,4 @@
-import type { Corner, Params } from './types';
+import type { Cap, Corner, OShape, Params } from './types';
 import { LIMITS } from './defaults';
 import { getFont } from '../data/fonts';
 
@@ -21,7 +21,40 @@ const jitter = (rng: () => number, amount: number) => (rng() * 2 - 1) * amount;
  * 기준 시안 주변의 이웃 시안을 만듭니다.
  * 기준에서 너무 멀어지지 않도록 변화 폭을 제한하고, 효과는 낮은 확률로만 켭니다.
  */
+function mutateJamo(center: Params, rng: () => number): Params {
+  const p: Params = { ...center, jamo: { ...center.jamo } };
+  const j = p.jamo;
+  j.strokeW = Math.round(clamp(j.strokeW + jitter(rng, 0.02), LIMITS.strokeW.min, LIMITS.strokeW.max) * 1000) / 1000;
+  if (rng() < 0.3) {
+    const caps: Cap[] = ['round', 'butt', 'square'];
+    j.cap = caps[Math.floor(rng() * 3)];
+  }
+  j.roundness = Math.round(clamp(j.roundness + jitter(rng, 0.5), 0, 1) * 100) / 100;
+  j.consonantScale = Math.round(clamp(j.consonantScale + jitter(rng, 0.2), 0.7, 1.2) * 100) / 100;
+  j.vowelScale = Math.round(clamp(j.vowelScale + jitter(rng, 0.2), 0.7, 1.2) * 100) / 100;
+  j.gap = Math.round(clamp(j.gap + jitter(rng, 8), -4, 16));
+  if (rng() < 0.3) {
+    const shapes: OShape[] = ['circle', 'square', 'diamond'];
+    j.oShape = shapes[Math.floor(rng() * 3)];
+  }
+  if (rng() < 0.3) j.circleGap = Math.round((0.08 + rng() * 0.2) * 100) / 100;
+  else if (rng() < 0.3) j.circleGap = 0;
+  if (rng() < 0.2) j.bounce = Math.round((0.02 + rng() * 0.06) * 1000) / 1000;
+  p.width = Math.round(clamp(center.width + jitter(rng, 18), 70, 130));
+  p.tracking = Math.round(clamp(center.tracking + jitter(rng, 0.1), -0.08, 0.3) * 100) / 100;
+  if (rng() < 0.2) {
+    p.skewOn = true;
+    p.skew = Math.round((rng() < 0.5 ? -1 : 1) * (6 + rng() * 10));
+  }
+  if (rng() < 0.12) {
+    p.overlapOn = true;
+    p.overlapAmount = 0.08 + rng() * 0.12;
+  }
+  return p;
+}
+
 export function mutate(center: Params, rng: () => number, siblings: string[]): Params {
+  if (center.engine === 'jamo') return mutateJamo(center, rng);
   const p: Params = { ...center };
 
   if (rng() < 0.3) {
@@ -61,7 +94,34 @@ export function mutate(center: Params, rng: () => number, siblings: string[]): P
 }
 
 /** 기준 시안과 비교해 무엇이 달라졌는지 짧은 말로 설명합니다. */
+function describeJamoDiff(p: Params, base: Params): string[] {
+  const tags: string[] = [];
+  const a = p.jamo;
+  const b = base.jamo;
+  const ds = a.strokeW - b.strokeW;
+  if (Math.abs(ds) > 0.01) tags.push(ds > 0 ? '더 굵은 선' : '더 가는 선');
+  if (a.cap !== b.cap) tags.push(a.cap === 'round' ? '둥근 끝' : a.cap === 'square' ? '각진 끝' : '평평한 끝');
+  const dr = a.roundness - b.roundness;
+  if (Math.abs(dr) > 0.3) tags.push(dr > 0 ? '꺾임 둥글게' : '꺾임 날카롭게');
+  if (a.oShape !== b.oShape) tags.push(a.oShape === 'circle' ? 'ㅇ 원' : a.oShape === 'square' ? 'ㅇ 네모' : 'ㅇ 마름모');
+  if (a.circleGap > 0.04 && b.circleGap <= 0.04) tags.push('열린 ㅇ');
+  if (a.circleGap <= 0.04 && b.circleGap > 0.04) tags.push('닫힌 ㅇ');
+  const dc = a.consonantScale - b.consonantScale;
+  if (Math.abs(dc) > 0.1) tags.push(dc > 0 ? '초성 크게' : '초성 작게');
+  const dv = a.vowelScale - b.vowelScale;
+  if (Math.abs(dv) > 0.1) tags.push(dv > 0 ? '모음 크게' : '모음 작게');
+  if (Math.abs(a.gap - b.gap) > 5) tags.push(a.gap > b.gap ? '초성·모음 멀게' : '초성·모음 붙게');
+  if (a.bounce > 0.015 && b.bounce <= 0.015) tags.push('위아래 어긋남');
+  if (Math.abs(p.width - base.width) > 8) tags.push(p.width > base.width ? '더 넓게' : '더 좁게');
+  const dt = p.tracking - base.tracking;
+  if (Math.abs(dt) > 0.05) tags.push(dt > 0 ? '자간 넓게' : '자간 좁게');
+  if (p.skewOn && !base.skewOn) tags.push(p.skew > 0 ? '오른쪽 기울기' : '왼쪽 기울기');
+  if (p.overlapOn && !base.overlapOn) tags.push('겹침');
+  return tags.length ? tags.slice(0, 3) : ['미세 조정'];
+}
+
 export function describeDiff(p: Params, base: Params): string[] {
+  if (p.engine === 'jamo' && base.engine === 'jamo') return describeJamoDiff(p, base);
   const tags: string[] = [];
   if (p.fontId !== base.fontId) tags.push(getFont(p.fontId).nameKo);
   const dw = p.weight - base.weight;

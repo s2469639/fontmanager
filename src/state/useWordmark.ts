@@ -14,6 +14,7 @@ export function useWordmark(text: string, params: Params): { wordmark: Wordmark 
   const last = useRef<Wordmark | null>(null);
 
   useEffect(() => {
+    if (params.engine === 'jamo') return;
     let alive = true;
     setError(false);
     loadFont(params.fontId)
@@ -22,7 +23,7 @@ export function useWordmark(text: string, params: Params): { wordmark: Wordmark 
     return () => {
       alive = false;
     };
-  }, [params.fontId]);
+  }, [params.fontId, params.engine]);
 
   const built = useMemo(
     () => buildWordmark(text, params),
@@ -32,7 +33,7 @@ export function useWordmark(text: string, params: Params): { wordmark: Wordmark 
 
   // 선택한 글꼴에 없는 글자가 있으면 그때서야 대체 글꼴을 불러옵니다.
   useEffect(() => {
-    if (built === null && isFontLoaded(params.fontId) && !isFontLoaded(FALLBACK_FONT_ID)) {
+    if (params.engine === 'font' && built === null && isFontLoaded(params.fontId) && !isFontLoaded(FALLBACK_FONT_ID)) {
       let alive = true;
       loadFont(FALLBACK_FONT_ID)
         .then(() => alive && setTick((t) => t + 1))

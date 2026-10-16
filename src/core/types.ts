@@ -1,7 +1,34 @@
 export type Corner = 'sharp' | 'round' | 'bevel';
 
+export type Cap = 'round' | 'butt' | 'square';
+export type OShape = 'circle' | 'square' | 'diamond';
+/** font: 글꼴 윤곽선 기반 / jamo: 자음·모음을 선으로 직접 조립(프로토타입) */
+export type Engine = 'font' | 'jamo';
+
+/** 자소 조립(선형) 모드의 조형 값 */
+export interface JamoParams {
+  /** 선 굵기(em) */
+  strokeW: number;
+  cap: Cap;
+  /** 꺾이는 곳을 둥글리는 정도 0..1 */
+  roundness: number;
+  /** 초성 크기 배율 */
+  consonantScale: number;
+  /** 모음 크기 배율 */
+  vowelScale: number;
+  /** 초성과 모음 사이 간격(설계 단위) */
+  gap: number;
+  oShape: OShape;
+  /** ㅇ(ㅎ의 고리 포함)을 여는 정도 0..0.5 */
+  circleGap: number;
+  /** 글자마다 위아래로 어긋나는 정도(em) */
+  bounce: number;
+}
+
 /** 워드마크의 모든 조형 값. UI와 렌더링 엔진이 공유하는 유일한 상태 형태입니다. */
 export interface Params {
+  engine: Engine;
+  jamo: JamoParams;
   fontId: string;
   /** 0..1. 가변 글꼴은 wght 축, 고정 글꼴은 외곽선 보정(근사)으로 해석됩니다. */
   weight: number;
@@ -87,6 +114,7 @@ export interface Wordmark {
   /** 실제로 그리는 선 두께 (knockout이면 보이는 두께의 2배) */
   strokeWidth: number;
   linejoin: 'miter' | 'round' | 'bevel';
+  linecap: Cap;
   miterLimit: number;
   opacity: number;
   /** 선택한 글꼴이 지원하지 않아 대체 글꼴로 그린 글자 */

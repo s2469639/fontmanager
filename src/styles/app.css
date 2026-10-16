@@ -537,6 +537,11 @@ ol {
   padding: 2px 8px;
   border-radius: 99px;
 }
+.card__badge--soft {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
 .card__meta {
   padding: 12px 14px 4px;
   flex: 1;

@@ -88,9 +88,10 @@ export function WordmarkSVG({ layers, pad = 0.12, guides = false, label, classNa
                 <path
                   key={j}
                   d={d}
-                  fill={l.color}
+                  fill={w.fill ? l.color : 'none'}
                   stroke={w.strokeWidth > 0 ? l.color : 'none'}
                   strokeWidth={w.strokeWidth}
+                  strokeLinecap={w.linecap}
                   strokeLinejoin={w.linejoin}
                   strokeMiterlimit={w.miterLimit}
                   opacity={w.opacity}

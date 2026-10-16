@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { analyzeText, MAX_CHARS } from '../core/text';
-import { DIRECTIONS } from '../data/styles';
+import { directionOf } from '../data/styles';
 import { MiniWord } from '../components/MiniWord';
 import type { Route } from '../state/router';
 
@@ -73,7 +73,11 @@ export function Start({ go }: { go: (r: Route) => void }) {
 
       <div className="start__preview" aria-label="미리보기">
         {canGo ? (
-          <MiniWord text={analysis.clean} params={DIRECTIONS[0].params} className="start__svg" />
+          <MiniWord
+            text={analysis.clean}
+            params={directionOf(/^[가-힣ㄱ-ㅎㅏ-ㅣ ]+$/.test(analysis.clean) ? 'linear' : 'geometric').params}
+            className="start__svg"
+          />
         ) : (
           <p className="start__empty">이름을 입력하면 여기에 바로 나타납니다</p>
         )}

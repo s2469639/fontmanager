@@ -2,6 +2,7 @@ import type { BBox, Cmd, GlyphShape, Params, Wordmark } from './types';
 import { UNIT } from './types';
 import { FALLBACK_FONT_ID, getFont } from '../data/fonts';
 import { axisValue, compensateWght, getGlyph, isFontLoaded } from './fontStore';
+import { buildJamoGlyph } from './jamo';
 
 /** 외곽선 보정으로 굵기를 줄 때 모서리 둥글림에 쓰는 최대 선 두께(em) */
 const CORNER_MAX_EM = 0.08;
@@ -10,6 +11,7 @@ const SPACE_ADVANCE = 300;
 const fmt = (n: number) => (Math.round(n * 10) / 10).toString();
 
 export interface StrokeSpec {
+  linecap: 'round' | 'butt' | 'square';
   fill: boolean;
   knockout: boolean;
   strokeWidth: number;
@@ -20,6 +22,18 @@ export interface StrokeSpec {
 
 /** 파라미터가 선(stroke)으로 만들어 내는 모양을 계산합니다. */
 export function strokeSpec(p: Params): StrokeSpec {
+  if (p.engine === 'jamo') {
+    const j = p.jamo;
+    return {
+      fill: false,
+      knockout: false,
+      linecap: j.cap,
+      strokeWidth: j.strokeW * UNIT,
+      linejoin: j.cap === 'round' || j.roundness > 0 ? 'round' : 'miter',
+      miterLimit: 4,
+      opacity: p.overlapOn ? p.overlapOpacity : 1,
+    };
+  }
   const def = getFont(p.fontId);
   const cornerStroke = p.corner === 'sharp' ? 0 : p.cornerAmount * CORNER_MAX_EM * UNIT;
   const weightStroke =
@@ -27,6 +41,7 @@ export function strokeSpec(p: Params): StrokeSpec {
   const linejoin = p.corner === 'sharp' ? 'miter' : p.corner;
   if (p.outlineOn) {
     return {
+      linecap: 'butt',
       fill: false,
       knockout: true,
       // 안쪽 절반은 지워지므로, 보이는 두께의 2배로 그립니다.
@@ -37,6 +52,7 @@ export function strokeSpec(p: Params): StrokeSpec {
     };
   }
   return {
+    linecap: 'butt',
     fill: true,
     knockout: false,
     strokeWidth: weightStroke + cornerStroke,
@@ -106,10 +122,11 @@ function transformGlyph(
  * 비율과 기울기는 점 좌표에 직접 적용하므로, 선 두께가 늘어나거나 찌그러지지 않습니다.
  */
 export function buildWordmark(text: string, p: Params): Wordmark | null {
-  if (!isFontLoaded(p.fontId)) return null;
+  const jamo = p.engine === 'jamo';
+  if (!jamo && !isFontLoaded(p.fontId)) return null;
   const def = getFont(p.fontId);
   const spec = strokeSpec(p);
-  let wght = axisValue(def, p.weight);
+  let wght = jamo ? null : axisValue(def, p.weight);
   // 모서리 선이 더한 두께만큼 가변 글꼴의 굵기 축을 낮춰 시각적 굵기를 유지합니다.
   if (wght !== null && !p.outlineOn && p.corner !== 'sharp') wght = compensateWght(def, wght, spec.strokeWidth);
   const fbDef = getFont(FALLBACK_FONT_ID);
@@ -126,8 +143,23 @@ export function buildWordmark(text: string, p: Params): Wordmark | null {
   const all: [number, number][] = [];
   let cursor = 0;
 
+  let drawn = 0;
   for (const ch of Array.from(text)) {
-    let g = getGlyph(p.fontId, wght, ch);
+    if (jamo && ch !== ' ') {
+      // 자소 조립 모드는 한글만 그립니다. 그 밖의 글자는 그리지 않고 알립니다.
+      const g = buildJamoGlyph(ch, p.jamo, drawn);
+      if (!g) {
+        if (!missingChars.includes(ch)) missingChars.push(ch);
+        continue;
+      }
+      drawn++;
+      const placed = transformGlyph(g, cursor, sx, sy, skewTan);
+      paths.push(placed.d);
+      for (const pt of placed.pts) all.push(pt);
+      cursor += g.advance * sx + gap;
+      continue;
+    }
+    let g = jamo ? null : getGlyph(p.fontId, wght, ch);
     let fromFallback = false;
     if (!g && ch !== ' ') {
       // 선택한 글꼴에 글자가 없으면 대체 글꼴로 그립니다.
@@ -166,7 +198,8 @@ export function buildWordmark(text: string, p: Params): Wordmark | null {
       if (y > maxY) maxY = y;
     }
     // 둥근/각진 모서리의 선은 윤곽선 바깥으로 half만큼 나옵니다. miter는 최대 miterLimit배.
-    const grow = spec.linejoin === 'miter' ? half * spec.miterLimit : half;
+    const grow =
+      spec.linejoin === 'miter' ? half * spec.miterLimit : spec.linecap === 'square' ? half * 1.5 : half;
     bbox = {
       x: minX - grow,
       y: minY - grow,

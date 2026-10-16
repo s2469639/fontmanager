@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Params } from '../core/types';
-import { DEFAULT_PARAMS } from '../core/defaults';
+import { DEFAULT_JAMO, DEFAULT_PARAMS } from '../core/defaults';
 
 export interface TrailItem {
   label: string;
@@ -38,6 +38,11 @@ interface State {
 }
 
 const COALESCE_MS = 700;
+
+/** 저장된 값에 새 필드가 없어도 기본값으로 채웁니다. */
+function fillParams(p?: Partial<Params>): Params {
+  return { ...DEFAULT_PARAMS, ...(p ?? {}), jamo: { ...DEFAULT_JAMO, ...(p?.jamo ?? {}) } };
+}
 
 export const useStore = create<State>()(
   persist(
@@ -117,8 +122,8 @@ export const useStore = create<State>()(
         return {
           ...current,
           ...p,
-          params: { ...DEFAULT_PARAMS, ...(p.params ?? {}) },
-          baseline: p.baseline ? { ...DEFAULT_PARAMS, ...p.baseline } : null,
+          params: fillParams(p.params),
+          baseline: p.baseline ? fillParams(p.baseline) : null,
         };
       },
     },
