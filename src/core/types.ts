@@ -58,12 +58,47 @@ export interface GlyphOverride {
   Tv?: number;
 }
 
+export type WaveAxis = 'y' | 'x' | 'both';
+export type BulgeScope = 'glyph' | 'word';
+
+/** 형태 변형 효과: 거칠게 · 물결 · 부풀림 · 줄무늬 */
+export interface FxParams {
+  roughOn: boolean;
+  /** 윤곽이 흔들리는 크기(em) */
+  roughAmp: number;
+  /** 흔들림 한 덩어리의 크기(em). 작을수록 잔잔하게 떨림 */
+  roughScale: number;
+  roughSeed: number;
+
+  waveOn: boolean;
+  waveAmp: number;
+  /** 물결 한 주기의 길이(em) */
+  waveLen: number;
+  wavePhase: number;
+  waveAxis: WaveAxis;
+
+  bulgeOn: boolean;
+  /** 양수는 부풀림, 음수는 오므림 */
+  bulgeAmount: number;
+  /** glyph: 글자마다, word: 단어 전체를 한 덩어리로 */
+  bulgeScope: BulgeScope;
+
+  stripeOn: boolean;
+  /** 띠가 뻗는 각도(도). 0이면 가로줄 */
+  stripeAngle: number;
+  stripeCount: number;
+  /** 한 줄 중 잘려 나가는 비율 */
+  stripeGap: number;
+  stripePhase: number;
+}
+
 /** 워드마크의 모든 조형 값. UI와 렌더링 엔진이 공유하는 유일한 상태 형태입니다. */
 export interface Params {
   engine: Engine;
   jamo: JamoParams;
   /** 자소 조립 모드에서 글자별로 바꾼 값. 키는 그려진 글자의 순서(0부터) */
   glyphs: Record<number, GlyphOverride>;
+  fx: FxParams;
   /** 자모별 뼈대 모양 번호 (예: ㄱ → 2). 지정하지 않으면 0번 */
   variants: Record<string, number>;
   fontId: string;
@@ -154,6 +189,8 @@ export interface Wordmark {
   widths: number[];
   /** paths와 같은 순서의 글자 영역 (선택·클릭용) */
   boxes: BBox[];
+  /** 줄무늬 효과로 지울 띠(사각형 꼭짓점 4개씩). 없으면 빈 배열 */
+  cuts: [number, number][][];
   linejoin: 'miter' | 'round' | 'bevel';
   linecap: Cap;
   miterLimit: number;

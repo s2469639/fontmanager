@@ -49,6 +49,73 @@ function drawPath(ctx: CanvasRenderingContext2D, d: string, wm: Wordmark, color:
   }
 }
 
+/** 워드마크 하나를 투명 캔버스 한 장에 그립니다. (knockout, 겹침 투명도, 줄무늬를 모두 처리) */
+function drawWordmarkLayer(
+  wm: Wordmark,
+  color: string,
+  size: ExportSize,
+  setup: (c: CanvasRenderingContext2D) => void,
+): HTMLCanvasElement {
+  const layer = () => {
+    const c = document.createElement('canvas');
+    c.width = size.width;
+    c.height = size.height;
+    return c;
+  };
+  const out = layer();
+  const octx = out.getContext('2d')!;
+  const composite = (src: HTMLCanvasElement, alpha: number) => {
+    octx.save();
+    octx.setTransform(1, 0, 0, 1, 0, 0);
+    octx.globalAlpha = alpha;
+    octx.drawImage(src, 0, 0);
+    octx.restore();
+  };
+  const widthOf = (i: number) => wm.widths[i] ?? wm.strokeWidth;
+
+  if (wm.knockout) {
+    // 선을 그린 뒤 글자 안쪽을 지워 바깥 테두리만 남깁니다. (화면 미리보기의 mask와 같은 결과)
+    const tmp = layer();
+    const t = tmp.getContext('2d')!;
+    setup(t);
+    wm.paths.forEach((d, i) => drawPath(t, d, wm, color, widthOf(i)));
+    t.globalCompositeOperation = 'destination-out';
+    t.fillStyle = '#000';
+    for (const d of wm.paths) t.fill(new Path2D(d));
+    composite(tmp, wm.opacity);
+  } else if (wm.opacity >= 1) {
+    setup(octx);
+    wm.paths.forEach((d, i) => drawPath(octx, d, wm, color, widthOf(i)));
+  } else {
+    // SVG의 path별 opacity와 같은 결과가 되도록 글자마다 따로 그린 뒤 합성합니다.
+    const tmp = layer();
+    const t = tmp.getContext('2d')!;
+    wm.paths.forEach((d, i) => {
+      t.setTransform(1, 0, 0, 1, 0, 0);
+      t.clearRect(0, 0, tmp.width, tmp.height);
+      setup(t);
+      drawPath(t, d, wm, color, widthOf(i));
+      composite(tmp, wm.opacity);
+    });
+  }
+
+  if (wm.cuts.length) {
+    // 줄무늬: 띠 모양으로 지웁니다.
+    octx.save();
+    setup(octx);
+    octx.globalCompositeOperation = 'destination-out';
+    octx.fillStyle = '#000';
+    for (const poly of wm.cuts) {
+      octx.beginPath();
+      poly.forEach(([x, y], i) => (i === 0 ? octx.moveTo(x, y) : octx.lineTo(x, y)));
+      octx.closePath();
+      octx.fill();
+    }
+    octx.restore();
+  }
+  return out;
+}
+
 /** 투명 배경 캔버스에 워드마크를 그립니다. 배경은 칠하지 않습니다. */
 export function renderToCanvas(wm: Wordmark, opt: ExportOptions): HTMLCanvasElement {
   const size = exportSize(wm, opt);
@@ -60,45 +127,7 @@ export function renderToCanvas(wm: Wordmark, opt: ExportOptions): HTMLCanvasElem
   const setup = (c: CanvasRenderingContext2D) => {
     c.setTransform(k, 0, 0, k, (-wm.bbox.x + opt.padEm * UNIT) * k, (-wm.bbox.y + opt.padEm * UNIT) * k);
   };
-  const layer = () => {
-    const c = document.createElement('canvas');
-    c.width = size.width;
-    c.height = size.height;
-    return c;
-  };
-  const composite = (src: HTMLCanvasElement) => {
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.globalAlpha = wm.opacity;
-    ctx.drawImage(src, 0, 0);
-    ctx.restore();
-  };
-
-  if (wm.knockout) {
-    // 선을 그린 뒤 글자 안쪽을 지워 바깥 테두리만 남깁니다. (화면 미리보기의 mask와 같은 결과)
-    const tmp = layer();
-    const t = tmp.getContext('2d')!;
-    setup(t);
-    wm.paths.forEach((d, i) => drawPath(t, d, wm, opt.color, wm.widths[i] ?? wm.strokeWidth));
-    t.globalCompositeOperation = 'destination-out';
-    t.fillStyle = '#000';
-    for (const d of wm.paths) t.fill(new Path2D(d));
-    composite(tmp);
-  } else if (wm.opacity >= 1) {
-    setup(ctx);
-    wm.paths.forEach((d, i) => drawPath(ctx, d, wm, opt.color, wm.widths[i] ?? wm.strokeWidth));
-  } else {
-    // SVG의 path별 opacity와 같은 결과가 되도록 글자마다 따로 그린 뒤 합성합니다.
-    const tmp = layer();
-    const t = tmp.getContext('2d')!;
-    wm.paths.forEach((d, i) => {
-      t.setTransform(1, 0, 0, 1, 0, 0);
-      t.clearRect(0, 0, tmp.width, tmp.height);
-      setup(t);
-      drawPath(t, d, wm, opt.color, wm.widths[i] ?? wm.strokeWidth);
-      composite(tmp);
-    });
-  }
+  ctx.drawImage(drawWordmarkLayer(wm, opt.color, size, setup), 0, 0);
   return canvas;
 }
 

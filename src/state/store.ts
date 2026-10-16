@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Params } from '../core/types';
-import { DEFAULT_JAMO, DEFAULT_PARAMS } from '../core/defaults';
+import { DEFAULT_FX, DEFAULT_JAMO, DEFAULT_PARAMS } from '../core/defaults';
 
 export interface TrailItem {
   label: string;
@@ -50,6 +50,7 @@ function fillParams(p?: Partial<Params>): Params {
     jamo: { ...DEFAULT_JAMO, ...(p?.jamo ?? {}) },
     glyphs: { ...(p?.glyphs ?? {}) },
     variants: { ...(p?.variants ?? {}) },
+    fx: { ...DEFAULT_FX, ...(p?.fx ?? {}) },
   };
 }
 

@@ -1,4 +1,24 @@
-import type { JamoParams, Params } from './types';
+import type { FxParams, JamoParams, Params } from './types';
+
+export const DEFAULT_FX: FxParams = {
+  roughOn: false,
+  roughAmp: 0.02,
+  roughScale: 0.06,
+  roughSeed: 7,
+  waveOn: false,
+  waveAmp: 0.06,
+  waveLen: 0.9,
+  wavePhase: 0,
+  waveAxis: 'y',
+  bulgeOn: false,
+  bulgeAmount: 0.6,
+  bulgeScope: 'glyph',
+  stripeOn: false,
+  stripeAngle: 0,
+  stripeCount: 14,
+  stripeGap: 0.35,
+  stripePhase: 0,
+};
 
 export const DEFAULT_JAMO: JamoParams = {
   strokeW: 0.05,
@@ -18,6 +38,7 @@ export const DEFAULT_PARAMS: Params = {
   engine: 'font',
   jamo: DEFAULT_JAMO,
   glyphs: {},
+  fx: DEFAULT_FX,
   variants: {},
   fontId: 'pretendard',
   weight: 0.5,
@@ -56,4 +77,15 @@ export const LIMITS = {
   outlineWidth: { min: 0.004, max: 0.25, step: 0.002 },
   overlapAmount: { min: 0.02, max: 1.2, step: 0.01 },
   overlapOpacity: { min: 0.1, max: 1, step: 0.01 },
+  roughAmp: { min: 0, max: 0.2, step: 0.001 },
+  roughScale: { min: 0.01, max: 0.6, step: 0.005 },
+  roughSeed: { min: 1, max: 99, step: 1 },
+  waveAmp: { min: 0, max: 0.7, step: 0.005 },
+  waveLen: { min: 0.1, max: 4, step: 0.01 },
+  wavePhase: { min: 0, max: 360, step: 1 },
+  bulgeAmount: { min: -0.95, max: 3, step: 0.01 },
+  stripeAngle: { min: -90, max: 90, step: 1 },
+  stripeCount: { min: 2, max: 80, step: 1 },
+  stripeGap: { min: 0.05, max: 0.92, step: 0.01 },
+  stripePhase: { min: 0, max: 1, step: 0.01 },
 } as const;

@@ -5,7 +5,7 @@ import { LIMITS } from '../core/defaults';
 import { FONTS, getFont } from '../data/fonts';
 import { axisValue } from '../core/fontStore';
 import { Segmented, Slider, EffectCard } from './Controls';
-import type { Cap, Corner, Engine, GlyphOverride, JamoParams, LinkMode, OShape, Params, PartAdjust } from '../core/types';
+import type { BulgeScope, Cap, Corner, Engine, FxParams, GlyphOverride, JamoParams, LinkMode, OShape, Params, PartAdjust, WaveAxis } from '../core/types';
 
 const SWATCHES = ['#111111', '#ffffff', '#ff3b1d', '#1f3bff', '#0a8f5b', '#e8a900'];
 
@@ -214,6 +214,8 @@ export function ControlPanel() {
             onChange={(v) => set({ overlapOpacity: v })}
           />
         </EffectCard>
+
+        <FxCards p={p} set={set} />
       </section>
 
       <section className="panel__section">
@@ -634,6 +636,152 @@ function ShapePicker({ p, set }: { p: Params; set: (patch: Partial<Params>) => v
           </div>
         </div>
       ))}
+    </>
+  );
+}
+
+/** 거칠게 · 물결 · 부풀림 · 줄무늬 — 글꼴/자소 조립 어느 쪽에도 적용되는 형태 변형 효과 */
+function FxCards({ p, set }: { p: Params; set: (patch: Partial<Params>) => void }) {
+  const fx = p.fx;
+  const setFx = (patch: Partial<FxParams>) => set({ fx: { ...fx, ...patch } });
+  return (
+    <>
+      <EffectCard
+        title="거칠게"
+        desc="윤곽이 손으로 오린 듯 울퉁불퉁해집니다"
+        on={fx.roughOn}
+        onToggle={(on) => setFx({ roughOn: on })}
+      >
+        <Slider
+          label="거친 정도"
+          value={fx.roughAmp}
+          {...LIMITS.roughAmp}
+          display={`${(fx.roughAmp * 100).toFixed(1)}%`}
+          onChange={(v) => setFx({ roughAmp: v })}
+        />
+        <Slider
+          label="떨림의 크기"
+          value={fx.roughScale}
+          {...LIMITS.roughScale}
+          display={`${(fx.roughScale * 100).toFixed(1)}%`}
+          hint="작을수록 잔잔하게 떨리고, 클수록 크게 일렁입니다."
+          onChange={(v) => setFx({ roughScale: v })}
+        />
+        <Slider
+          label="무늬 바꾸기"
+          value={fx.roughSeed}
+          {...LIMITS.roughSeed}
+          display={`#${fx.roughSeed}`}
+          onChange={(v) => setFx({ roughSeed: v })}
+        />
+      </EffectCard>
+
+      <EffectCard
+        title="물결"
+        desc="글자 전체가 파도처럼 일렁입니다"
+        on={fx.waveOn}
+        onToggle={(on) => setFx({ waveOn: on })}
+      >
+        <div className="field">
+          <span className="field__label">방향</span>
+          <Segmented<WaveAxis>
+            label="물결 방향"
+            value={fx.waveAxis}
+            options={[
+              { value: 'y', label: '위아래' },
+              { value: 'x', label: '좌우' },
+              { value: 'both', label: '둘 다' },
+            ]}
+            onChange={(v) => setFx({ waveAxis: v })}
+          />
+        </div>
+        <Slider
+          label="높이"
+          value={fx.waveAmp}
+          {...LIMITS.waveAmp}
+          display={`${(fx.waveAmp * 100).toFixed(1)}%`}
+          onChange={(v) => setFx({ waveAmp: v })}
+        />
+        <Slider
+          label="물결 길이"
+          value={fx.waveLen}
+          {...LIMITS.waveLen}
+          display={`${fx.waveLen.toFixed(2)}em`}
+          onChange={(v) => setFx({ waveLen: v })}
+        />
+        <Slider
+          label="위상"
+          value={fx.wavePhase}
+          {...LIMITS.wavePhase}
+          display={`${fx.wavePhase}°`}
+          onChange={(v) => setFx({ wavePhase: v })}
+        />
+      </EffectCard>
+
+      <EffectCard
+        title="부풀림"
+        desc="가운데가 볼록하게 부풀거나 오므라듭니다"
+        on={fx.bulgeOn}
+        onToggle={(on) => setFx({ bulgeOn: on })}
+      >
+        <div className="field">
+          <span className="field__label">적용 범위</span>
+          <Segmented<BulgeScope>
+            label="부풀림 범위"
+            value={fx.bulgeScope}
+            options={[
+              { value: 'glyph', label: '글자마다' },
+              { value: 'word', label: '단어 전체' },
+            ]}
+            onChange={(v) => setFx({ bulgeScope: v })}
+          />
+        </div>
+        <Slider
+          label="세기"
+          value={fx.bulgeAmount}
+          {...LIMITS.bulgeAmount}
+          display={`${fx.bulgeAmount > 0 ? '+' : ''}${Math.round(fx.bulgeAmount * 100)}%`}
+          hint="양수는 부풀리고 음수는 오므립니다."
+          onChange={(v) => setFx({ bulgeAmount: v })}
+        />
+      </EffectCard>
+
+      <EffectCard
+        title="줄무늬 잘라내기"
+        desc="글자를 가는 띠로 잘라 틈을 냅니다"
+        on={fx.stripeOn}
+        onToggle={(on) => setFx({ stripeOn: on })}
+      >
+        <Slider
+          label="줄 수"
+          value={fx.stripeCount}
+          {...LIMITS.stripeCount}
+          display={`${fx.stripeCount}줄`}
+          onChange={(v) => setFx({ stripeCount: v })}
+        />
+        <Slider
+          label="잘라내는 비율"
+          value={fx.stripeGap}
+          {...LIMITS.stripeGap}
+          display={`${Math.round(fx.stripeGap * 100)}%`}
+          onChange={(v) => setFx({ stripeGap: v })}
+        />
+        <Slider
+          label="각도"
+          value={fx.stripeAngle}
+          {...LIMITS.stripeAngle}
+          display={`${fx.stripeAngle}°`}
+          hint="0°는 가로줄, 90°는 세로줄입니다."
+          onChange={(v) => setFx({ stripeAngle: v })}
+        />
+        <Slider
+          label="위치 옮기기"
+          value={fx.stripePhase}
+          {...LIMITS.stripePhase}
+          display={`${Math.round(fx.stripePhase * 100)}%`}
+          onChange={(v) => setFx({ stripePhase: v })}
+        />
+      </EffectCard>
     </>
   );
 }

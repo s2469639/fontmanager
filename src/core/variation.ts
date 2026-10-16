@@ -71,7 +71,37 @@ function mutateJamo(center: Params, rng: () => number, text: string): Params {
   return p;
 }
 
+/** 낮은 확률로 형태 변형 효과를 하나 켭니다. */
+function maybeFx(p: Params, rng: () => number): Params {
+  if (rng() > 0.18) return p;
+  const fx = { ...p.fx };
+  const pick = Math.floor(rng() * 4);
+  if (pick === 0) {
+    fx.roughOn = true;
+    fx.roughAmp = 0.012 + rng() * 0.03;
+    fx.roughSeed = 1 + Math.floor(rng() * 98);
+  } else if (pick === 1) {
+    fx.waveOn = true;
+    fx.waveAmp = 0.03 + rng() * 0.08;
+    fx.waveLen = 0.5 + rng() * 1.5;
+    fx.waveAxis = (['y', 'x', 'both'] as const)[Math.floor(rng() * 3)];
+  } else if (pick === 2) {
+    fx.bulgeOn = true;
+    fx.bulgeAmount = rng() < 0.7 ? 0.3 + rng() * 0.8 : -(0.2 + rng() * 0.4);
+  } else {
+    fx.stripeOn = true;
+    fx.stripeCount = 8 + Math.floor(rng() * 20);
+    fx.stripeGap = 0.2 + rng() * 0.3;
+    fx.stripeAngle = rng() < 0.6 ? 0 : Math.round((rng() - 0.5) * 120);
+  }
+  return { ...p, fx };
+}
+
 export function mutate(center: Params, rng: () => number, siblings: string[], text = ''): Params {
+  return maybeFx(mutateBase(center, rng, siblings, text), rng);
+}
+
+function mutateBase(center: Params, rng: () => number, siblings: string[], text: string): Params {
   if (center.engine === 'jamo') return mutateJamo(center, rng, text);
   const p: Params = { ...center };
 
@@ -146,7 +176,23 @@ function describeJamoDiff(p: Params, base: Params): string[] {
   return tags.length ? tags.slice(0, 3) : ['미세 조정'];
 }
 
+function describeFxDiff(p: Params, base: Params): string[] {
+  const out: string[] = [];
+  if (p.fx.roughOn && !base.fx.roughOn) out.push('거칠게');
+  if (p.fx.waveOn && !base.fx.waveOn) out.push('물결');
+  if (p.fx.bulgeOn && !base.fx.bulgeOn) out.push(p.fx.bulgeAmount < 0 ? '오므림' : '부풀림');
+  if (p.fx.stripeOn && !base.fx.stripeOn) out.push('줄무늬');
+  return out;
+}
+
 export function describeDiff(p: Params, base: Params): string[] {
+  const fxTags = describeFxDiff(p, base);
+  const main = describeBaseDiff(p, base).filter((t) => t !== '미세 조정');
+  const all = [...fxTags, ...main];
+  return all.length ? all.slice(0, 3) : ['미세 조정'];
+}
+
+function describeBaseDiff(p: Params, base: Params): string[] {
   if (p.engine === 'jamo' && base.engine === 'jamo') return describeJamoDiff(p, base);
   const tags: string[] = [];
   if (p.fontId !== base.fontId) tags.push(getFont(p.fontId).nameKo);

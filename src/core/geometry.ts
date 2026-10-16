@@ -3,6 +3,7 @@ import { UNIT } from './types';
 import { FALLBACK_FONT_ID, getFont } from '../data/fonts';
 import { axisValue, compensateWght, getGlyph, isFontLoaded } from './fontStore';
 import { buildJamoGlyph } from './jamo';
+import { deform, flatten, fxActive, segmentLength, stripeBands, subsToCmds } from './effects';
 
 /** 외곽선 보정으로 굵기를 줄 때 모서리 둥글림에 쓰는 최대 선 두께(em) */
 const CORNER_MAX_EM = 0.08;
@@ -68,13 +69,35 @@ interface Placed {
   box: { minX: number; minY: number; maxX: number; maxY: number };
 }
 
-function transformGlyph(
-  g: GlyphShape,
-  ox: number,
-  sx: number,
-  sy: number,
-  skewTan: number,
-): Placed {
+/** 글꼴 좌표(em=1000, y 위로)의 글자를 최종 화면 좌표(y 아래로)로 옮깁니다. */
+function toFinalCmds(g: GlyphShape, ox: number, sx: number, sy: number, skewTan: number): Cmd[] {
+  const tx = (x: number, yUp: number): [number, number] => [ox + x * sx + yUp * sy * skewTan, -yUp * sy];
+  return (g.cmds as Cmd[]).map((c): Cmd => {
+    switch (c[0]) {
+      case 'M':
+      case 'L': {
+        const [x, y] = tx(c[1], c[2]);
+        return [c[0], x, y];
+      }
+      case 'Q': {
+        const [x1, y1] = tx(c[1], c[2]);
+        const [x, y] = tx(c[3], c[4]);
+        return ['Q', x1, y1, x, y];
+      }
+      case 'C': {
+        const [x1, y1] = tx(c[1], c[2]);
+        const [x2, y2] = tx(c[3], c[4]);
+        const [x, y] = tx(c[5], c[6]);
+        return ['C', x1, y1, x2, y2, x, y];
+      }
+      default:
+        return c;
+    }
+  });
+}
+
+/** 경로 문자열과 범위를 계산합니다. 곡선의 범위는 제어점이 아니라 곡선 위의 점으로 잽니다. */
+function measure(cmds: Cmd[]): Placed {
   const pts: [number, number][] = [];
   const box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
   const grow = (X: number, Y: number) => {
@@ -84,53 +107,39 @@ function transformGlyph(
     if (Y < box.minY) box.minY = Y;
     if (Y > box.maxY) box.maxY = Y;
   };
-  const tx = (x: number, yUp: number): [number, number] => [ox + x * sx + yUp * sy * skewTan, -yUp * sy];
-  // 곡선의 범위는 제어점이 아니라 곡선 위의 점으로 계산해야 여백이 실제 글자 모양에 맞습니다.
   const STEPS = 8;
   let cur: [number, number] = [0, 0];
   let d = '';
-  for (const c of g.cmds as Cmd[]) {
+  for (const c of cmds) {
     switch (c[0]) {
-      case 'M': {
-        const [x, y] = tx(c[1], c[2]);
-        d += `M${fmt(x)} ${fmt(y)}`;
-        grow(x, y);
-        cur = [x, y];
-        break;
-      }
+      case 'M':
       case 'L': {
-        const [x, y] = tx(c[1], c[2]);
-        d += `L${fmt(x)} ${fmt(y)}`;
-        grow(x, y);
-        cur = [x, y];
+        d += `${c[0]}${fmt(c[1])} ${fmt(c[2])}`;
+        grow(c[1], c[2]);
+        cur = [c[1], c[2]];
         break;
       }
       case 'Q': {
-        const [x1, y1] = tx(c[1], c[2]);
-        const [x, y] = tx(c[3], c[4]);
-        d += `Q${fmt(x1)} ${fmt(y1)} ${fmt(x)} ${fmt(y)}`;
+        d += `Q${fmt(c[1])} ${fmt(c[2])} ${fmt(c[3])} ${fmt(c[4])}`;
         for (let i = 1; i <= STEPS; i++) {
           const t = i / STEPS;
           const u = 1 - t;
-          grow(u * u * cur[0] + 2 * u * t * x1 + t * t * x, u * u * cur[1] + 2 * u * t * y1 + t * t * y);
+          grow(u * u * cur[0] + 2 * u * t * c[1] + t * t * c[3], u * u * cur[1] + 2 * u * t * c[2] + t * t * c[4]);
         }
-        cur = [x, y];
+        cur = [c[3], c[4]];
         break;
       }
       case 'C': {
-        const [x1, y1] = tx(c[1], c[2]);
-        const [x2, y2] = tx(c[3], c[4]);
-        const [x, y] = tx(c[5], c[6]);
-        d += `C${fmt(x1)} ${fmt(y1)} ${fmt(x2)} ${fmt(y2)} ${fmt(x)} ${fmt(y)}`;
+        d += `C${fmt(c[1])} ${fmt(c[2])} ${fmt(c[3])} ${fmt(c[4])} ${fmt(c[5])} ${fmt(c[6])}`;
         for (let i = 1; i <= STEPS; i++) {
           const t = i / STEPS;
           const u = 1 - t;
           grow(
-            u * u * u * cur[0] + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x,
-            u * u * u * cur[1] + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y,
+            u * u * u * cur[0] + 3 * u * u * t * c[1] + 3 * u * t * t * c[3] + t * t * t * c[5],
+            u * u * u * cur[1] + 3 * u * u * t * c[2] + 3 * u * t * t * c[4] + t * t * t * c[6],
           );
         }
-        cur = [x, y];
+        cur = [c[5], c[6]];
         break;
       }
       case 'Z':
@@ -165,10 +174,8 @@ export function buildWordmark(text: string, p: Params): Wordmark | null {
 
   const fallbackChars: string[] = [];
   const missingChars: string[] = [];
-  const paths: string[] = [];
+  const raws: Cmd[][] = [];
   const widths: number[] = [];
-  const glyphBoxes: Placed['box'][] = [];
-  const all: [number, number][] = [];
   let cursor = 0;
 
   let drawn = 0;
@@ -182,11 +189,8 @@ export function buildWordmark(text: string, p: Params): Wordmark | null {
         continue;
       }
       drawn++;
-      const placed = transformGlyph(g, cursor, sx, sy, skewTan);
-      paths.push(placed.d);
+      raws.push(toFinalCmds(g, cursor, sx, sy, skewTan));
       widths.push(p.jamo.strokeW * UNIT * (ov?.stroke ?? 1));
-      glyphBoxes.push(placed.box);
-      for (const pt of placed.pts) all.push(pt);
       cursor += g.advance * sx + gap;
       continue;
     }
@@ -210,13 +214,38 @@ export function buildWordmark(text: string, p: Params): Wordmark | null {
     }
     const shape = g!;
     if (fromFallback && !fallbackChars.includes(ch)) fallbackChars.push(ch);
-    const placed = transformGlyph(shape, cursor, sx, sy, skewTan);
-    paths.push(placed.d);
+    raws.push(toFinalCmds(shape, cursor, sx, sy, skewTan));
     widths.push(-1);
-    glyphBoxes.push(placed.box);
-    for (const pt of placed.pts) all.push(pt);
     cursor += shape.advance * sx + gap;
   }
+
+  // 글자별 범위를 재고, 형태 변형 효과(거칠게·물결·부풀림)가 켜져 있으면 점을 움직인 뒤 다시 잽니다.
+  let placedList = raws.map(measure);
+  if (fxActive(p.fx) && placedList.length) {
+    let ux0 = Infinity, uy0 = Infinity, ux1 = -Infinity, uy1 = -Infinity;
+    for (const { box } of placedList) {
+      ux0 = Math.min(ux0, box.minX);
+      uy0 = Math.min(uy0, box.minY);
+      ux1 = Math.max(ux1, box.maxX);
+      uy1 = Math.max(uy1, box.maxY);
+    }
+    const wordCenter: [number, number] = [(ux0 + ux1) / 2, (uy0 + uy1) / 2];
+    const wordRadius = Math.hypot(ux1 - ux0, uy1 - uy0) / 2;
+    const seg = segmentLength(p.fx);
+    placedList = raws.map((cmds, i) => {
+      const b = placedList[i].box;
+      const ctx = {
+        glyphCenter: [(b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2] as [number, number],
+        glyphRadius: (Math.hypot(b.maxX - b.minX, b.maxY - b.minY) / 2) * 1.05,
+        wordCenter,
+        wordRadius: wordRadius * 1.05,
+      };
+      return measure(subsToCmds(deform(flatten(cmds, seg), p.fx, ctx)));
+    });
+  }
+  const paths = placedList.map((pl) => pl.d);
+  const glyphBoxes = placedList.map((pl) => pl.box);
+  const all: [number, number][] = placedList.flatMap((pl) => pl.pts);
 
   const maxW = Math.max(spec.strokeWidth, ...widths);
   const half = maxW / 2;
@@ -248,6 +277,7 @@ export function buildWordmark(text: string, p: Params): Wordmark | null {
   return {
     paths,
     bbox,
+    cuts: stripeBands(p.fx, bbox),
     ...spec,
     widths: widths.map((w) => (w > 0 ? w : spec.strokeWidth)),
     boxes,

@@ -226,3 +226,44 @@ describe('획 연결', () => {
     }
   });
 });
+
+import { DEFAULT_FX } from './defaults';
+
+describe('형태 변형 효과', () => {
+  const jamoP = { ...DEFAULT_PARAMS, engine: 'jamo' as const };
+  const fxP = (fx: Partial<typeof DEFAULT_FX>) => ({ ...jamoP, fx: { ...DEFAULT_FX, ...fx } });
+  it('효과를 끄면 기존 결과와 같다', () => {
+    expect(buildWordmark('고요', fxP({}))!.paths).toEqual(buildWordmark('고요', jamoP)!.paths);
+  });
+  it('거칠게: 같은 시드는 같은 결과, 다른 시드는 다른 결과', () => {
+    const a = buildWordmark('고요', fxP({ roughOn: true, roughSeed: 3 }))!;
+    const b = buildWordmark('고요', fxP({ roughOn: true, roughSeed: 3 }))!;
+    const c = buildWordmark('고요', fxP({ roughOn: true, roughSeed: 4 }))!;
+    expect(a.paths).toEqual(b.paths);
+    expect(a.paths).not.toEqual(c.paths);
+    expect(a.paths).not.toEqual(buildWordmark('고요', jamoP)!.paths);
+  });
+  it('물결: 곧은 선도 휘어지고 범위가 달라진다', () => {
+    const plain = buildWordmark('ㅡ', jamoP)!;
+    const wave = buildWordmark('ㅡ', fxP({ waveOn: true, waveAmp: 0.2, waveLen: 0.6 }))!;
+    expect(wave.bbox.h).toBeGreaterThan(plain.bbox.h + 100);
+  });
+  it('부풀림: 글자 범위가 커지고, 오므림은 작아진다', () => {
+    const plain = buildWordmark('아', jamoP)!;
+    const big = buildWordmark('아', fxP({ bulgeOn: true, bulgeAmount: 1 }))!;
+    const small = buildWordmark('아', fxP({ bulgeOn: true, bulgeAmount: -0.6 }))!;
+    expect(big.bbox.w).toBeGreaterThan(plain.bbox.w);
+    expect(small.bbox.w).toBeLessThan(plain.bbox.w);
+  });
+  it('글꼴 모드에서도 효과가 적용된다', async () => {
+    const wm = buildWordmark('고요', { ...DEFAULT_PARAMS, fx: { ...DEFAULT_FX, waveOn: true } })!;
+    expect(wm.paths[0]).toMatch(/^M[-\d.]+ [-\d.]+L/);
+  });
+  it('줄무늬: 띠가 만들어지고 줄 수만큼 늘어난다', () => {
+    const few = buildWordmark('고요', fxP({ stripeOn: true, stripeCount: 4 }))!;
+    const many = buildWordmark('고요', fxP({ stripeOn: true, stripeCount: 20 }))!;
+    expect(few.cuts.length).toBeGreaterThan(0);
+    expect(many.cuts.length).toBeGreaterThan(few.cuts.length);
+    expect(buildWordmark('고요', jamoP)!.cuts).toEqual([]);
+  });
+});

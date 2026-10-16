@@ -47,8 +47,18 @@ export function WordmarkSVG({ layers, pad = 0.12, guides = false, selectable, la
         const w = l.wordmark;
         const needsMask = w.knockout || l.ghost;
         const maskId = `m${uid}${i}`;
+        const cutId = `c${uid}${i}`;
+        const cut = !l.ghost && w.cuts.length > 0;
         return (
-          <g key={i}>
+          <g key={i} mask={cut ? `url(#${cutId})` : undefined}>
+            {cut && (
+              <mask id={cutId} maskUnits="userSpaceOnUse" x={vx} y={vy} width={vw} height={vh}>
+                <rect x={vx} y={vy} width={vw} height={vh} fill="#fff" />
+                {w.cuts.map((poly, k) => (
+                  <polygon key={k} points={poly.map((pt) => `${pt[0]},${pt[1]}`).join(' ')} fill="#000" />
+                ))}
+              </mask>
+            )}
             {needsMask && (
               <mask id={maskId} maskUnits="userSpaceOnUse" x={vx} y={vy} width={vw} height={vh}>
                 <rect x={vx} y={vy} width={vw} height={vh} fill="#fff" />
