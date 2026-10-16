@@ -21,6 +21,7 @@ const PADS = [
 export function Result({ go }: { go: (r: Route) => void }) {
   const text = useStore((s) => s.text);
   const params = useStore((s) => s.params);
+  const art = useStore((s) => s.art);
   const { wordmark } = useWordmark(text, params);
 
   const [size, setSize] = useState<string>('400');
@@ -38,28 +39,37 @@ export function Result({ go }: { go: (r: Route) => void }) {
     () => ({ color: exportColor, pxPerEm: Number(size), padEm: Number(pad) }),
     [exportColor, size, pad],
   );
-  const dims = wordmark ? exportSize(wordmark, opt) : null;
+  const dims = wordmark ? exportSize(wordmark, opt, art) : null;
 
-  // 저장될 PNG와 같은 렌더링을 작게 미리 보여 줍니다.
+  // 저장될 PNG와 같은 렌더링을 작게 미리 보여 줍니다. (첨부한 그림 포함)
   useEffect(() => {
     if (!wordmark) return;
-    const id = setTimeout(() => {
-      const c = renderToCanvas(wordmark, { ...opt, pxPerEm: 120 });
-      c.toBlob((b) => {
-        if (b) setPreview((old) => {
-          if (old) URL.revokeObjectURL(old);
-          return URL.createObjectURL(b);
-        });
-      }, 'image/png');
+    let alive = true;
+    const id = setTimeout(async () => {
+      try {
+        const c = await renderToCanvas(wordmark, { ...opt, pxPerEm: 120 }, art);
+        c.toBlob((b) => {
+          if (b && alive)
+            setPreview((old) => {
+              if (old) URL.revokeObjectURL(old);
+              return URL.createObjectURL(b);
+            });
+        }, 'image/png');
+      } catch {
+        /* 미리보기만 못 그릴 뿐 저장에는 영향이 없습니다. */
+      }
     }, 80);
-    return () => clearTimeout(id);
-  }, [wordmark, opt]);
+    return () => {
+      alive = false;
+      clearTimeout(id);
+    };
+  }, [wordmark, opt, art]);
 
   const save = async () => {
     if (!wordmark) return;
     setBusy(true);
     try {
-      const blob = await exportPngBlob(wordmark, opt);
+      const blob = await exportPngBlob(wordmark, opt, art);
       downloadBlob(blob, `${text.replace(/\s+/g, '-')}-wordmark.png`);
     } finally {
       setBusy(false);
@@ -93,6 +103,7 @@ export function Result({ go }: { go: (r: Route) => void }) {
               {wordmark && (
                 <WordmarkSVG
                   layers={[{ wordmark, color: resolveColor(params.color, bg) }]}
+                  art={art}
                   pad={0.4}
                   label={`${text} (${bg === 'light' ? '밝은' : '어두운'} 배경)`}
                   className="rpanel__svg"

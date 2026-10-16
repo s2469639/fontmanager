@@ -1,5 +1,7 @@
-import type { Wordmark } from './types';
+import type { BBox, Wordmark } from './types';
 import { UNIT } from './types';
+import { artHeight, contentBox, loadArtImage, wordCenter } from './art';
+import type { ArtLayer } from './art';
 
 export interface ExportOptions {
   color: string;
@@ -20,9 +22,10 @@ export interface ExportSize {
   pxPerEm: number;
 }
 
-export function exportSize(wm: Wordmark, opt: Pick<ExportOptions, 'pxPerEm' | 'padEm'>): ExportSize {
-  const wEm = wm.bbox.w / UNIT + opt.padEm * 2;
-  const hEm = wm.bbox.h / UNIT + opt.padEm * 2;
+export function exportSize(wm: Wordmark, opt: Pick<ExportOptions, 'pxPerEm' | 'padEm'>, art: ArtLayer[] = []): ExportSize {
+  const box = contentBox(wm.bbox, art);
+  const wEm = box.w / UNIT + opt.padEm * 2;
+  const hEm = box.h / UNIT + opt.padEm * 2;
   let ppe = opt.pxPerEm;
   let clamped = false;
   const limit = Math.min(MAX_SIDE / wEm, MAX_SIDE / hEm, Math.sqrt(MAX_AREA / (wEm * hEm)));
@@ -116,23 +119,47 @@ function drawWordmarkLayer(
   return out;
 }
 
-/** 투명 배경 캔버스에 워드마크를 그립니다. 배경은 칠하지 않습니다. */
-export function renderToCanvas(wm: Wordmark, opt: ExportOptions): HTMLCanvasElement {
-  const size = exportSize(wm, opt);
+async function drawArt(ctx: CanvasRenderingContext2D, l: ArtLayer, center: [number, number]) {
+  const img = await loadArtImage(l.src);
+  ctx.save();
+  ctx.globalAlpha = l.opacity;
+  ctx.translate(center[0] + l.ox, center[1] + l.oy);
+  ctx.rotate((l.rot * Math.PI) / 180);
+  ctx.scale(l.flipX ? -1 : 1, 1);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, -l.width / 2, -artHeight(l) / 2, l.width, artHeight(l));
+  ctx.restore();
+}
+
+/** 투명 배경 캔버스에 (뒤 그림 → 워드마크 → 앞 그림) 순서로 그립니다. 배경은 칠하지 않습니다. */
+export async function renderToCanvas(wm: Wordmark, opt: ExportOptions, art: ArtLayer[] = []): Promise<HTMLCanvasElement> {
+  const size = exportSize(wm, opt, art);
+  const box: BBox = contentBox(wm.bbox, art);
   const canvas = document.createElement('canvas');
   canvas.width = size.width;
   canvas.height = size.height;
   const ctx = canvas.getContext('2d')!;
   const k = size.pxPerEm / UNIT;
   const setup = (c: CanvasRenderingContext2D) => {
-    c.setTransform(k, 0, 0, k, (-wm.bbox.x + opt.padEm * UNIT) * k, (-wm.bbox.y + opt.padEm * UNIT) * k);
+    c.setTransform(k, 0, 0, k, (-box.x + opt.padEm * UNIT) * k, (-box.y + opt.padEm * UNIT) * k);
   };
+  const center = wordCenter(wm.bbox);
+  for (const l of art.filter((a) => !a.front)) {
+    setup(ctx);
+    await drawArt(ctx, l, center);
+  }
+  // 앞서 그림을 그리며 남은 좌표 변환을 풀고, 완성된 글자 레이어를 그대로 얹습니다.
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(drawWordmarkLayer(wm, opt.color, size, setup), 0, 0);
+  for (const l of art.filter((a) => a.front)) {
+    setup(ctx);
+    await drawArt(ctx, l, center);
+  }
   return canvas;
 }
 
-export function exportPngBlob(wm: Wordmark, opt: ExportOptions): Promise<Blob> {
-  const canvas = renderToCanvas(wm, opt);
+export async function exportPngBlob(wm: Wordmark, opt: ExportOptions, art: ArtLayer[] = []): Promise<Blob> {
+  const canvas = await renderToCanvas(wm, opt, art);
   return new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG를 만들지 못했습니다.'))), 'image/png'),
   );

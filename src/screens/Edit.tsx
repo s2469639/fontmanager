@@ -4,6 +4,7 @@ import { useWordmark } from '../state/useWordmark';
 import { WordmarkSVG } from '../components/WordmarkSVG';
 import type { Layer } from '../components/WordmarkSVG';
 import { ControlPanel } from '../components/ControlPanel';
+import { ArtPanel } from '../components/ArtPanel';
 import { Segmented } from '../components/Controls';
 import { BG, resolveColor } from '../core/color';
 import { DEFAULT_PARAMS } from '../core/defaults';
@@ -19,6 +20,10 @@ export function Edit({ go }: { go: (r: Route) => void }) {
   const bg = useStore((s) => s.bg);
   const selectedGlyph = useStore((s) => s.selectedGlyph);
   const selectGlyph = useStore((s) => s.selectGlyph);
+  const art = useStore((s) => s.art);
+  const selectedArt = useStore((s) => s.selectedArt);
+  const selectArt = useStore((s) => s.selectArt);
+  const updateArt = useStore((s) => s.updateArt);
   const setBg = useStore((s) => s.setBg);
   const canUndo = useStore((s) => s.past.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
@@ -111,8 +116,14 @@ export function Edit({ go }: { go: (r: Route) => void }) {
               layers={layers}
               pad={0.35}
               guides={guides}
+              art={art}
+              artEdit={
+                art.length
+                  ? { selectedId: selectedArt, onSelect: selectArt, onMove: (id, ox, oy) => updateArt(id, { ox, oy }) }
+                  : undefined
+              }
               selectable={
-                params.engine === 'jamo' && compare === 'current'
+                params.engine === 'jamo' && compare === 'current' && !selectedArt
                   ? { selected: selectedGlyph, onSelect: (i) => selectGlyph(selectedGlyph === i ? null : i) }
                   : undefined
               }
@@ -132,6 +143,7 @@ export function Edit({ go }: { go: (r: Route) => void }) {
         </section>
         <aside className="editor__panel">
           <ControlPanel />
+          <ArtPanel wm={cur.wordmark} />
         </aside>
       </div>
     </main>

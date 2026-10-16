@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Params } from '../core/types';
+import { disposeArt } from '../core/art';
+import type { ArtLayer } from '../core/art';
 import { DEFAULT_FX, DEFAULT_JAMO, DEFAULT_PARAMS } from '../core/defaults';
 
 export interface TrailItem {
@@ -21,6 +23,10 @@ interface State {
   /** 글자별 편집에서 선택한 글자(그려진 순서). 저장하지 않습니다. */
   selectedGlyph: number | null;
 
+  /** 첨부한 그림. 파일 자체는 저장하지 않으므로 새로고침하면 사라집니다. */
+  art: ArtLayer[];
+  selectedArt: string | null;
+
   /** 형태 탐색 갤러리 상태 */
   exploreCenter: Params | null;
   exploreSiblings: string[];
@@ -30,6 +36,10 @@ interface State {
   setText: (t: string) => void;
   setBg: (b: 'light' | 'dark') => void;
   selectGlyph: (i: number | null) => void;
+  addArt: (layer: ArtLayer) => void;
+  updateArt: (id: string, patch: Partial<ArtLayer>) => void;
+  removeArt: (id: string) => void;
+  selectArt: (id: string | null) => void;
   /** 시안을 골라 편집을 시작합니다. 되돌리기 기록과 비교 기준이 새로 만들어집니다. */
   startEditing: (params: Params, label: string) => void;
   setParams: (patch: Partial<Params>) => void;
@@ -66,6 +76,8 @@ export const useStore = create<State>()(
       lastChangeAt: 0,
       bg: 'light',
       selectedGlyph: null,
+      art: [],
+      selectedArt: null,
       exploreCenter: null,
       exploreSiblings: [],
       exploreSeed: 1,
@@ -74,6 +86,15 @@ export const useStore = create<State>()(
       setText: (text) => set({ text }),
       setBg: (bg) => set({ bg }),
       selectGlyph: (selectedGlyph) => set({ selectedGlyph }),
+      addArt: (layer) => set((s) => ({ art: [...s.art, layer], selectedArt: layer.id, selectedGlyph: null })),
+      updateArt: (id, patch) => set((s) => ({ art: s.art.map((l) => (l.id === id ? { ...l, ...patch } : l)) })),
+      removeArt: (id) =>
+        set((s) => {
+          const gone = s.art.find((l) => l.id === id);
+          if (gone) disposeArt(gone);
+          return { art: s.art.filter((l) => l.id !== id), selectedArt: s.selectedArt === id ? null : s.selectedArt };
+        }),
+      selectArt: (selectedArt) => set((s) => ({ selectedArt, selectedGlyph: selectedArt ? null : s.selectedGlyph })),
 
       startEditing: (params, label) =>
         set({ params, baseline: params, baselineLabel: label, past: [], future: [], lastChangeAt: 0, selectedGlyph: null }),

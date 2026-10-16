@@ -1130,3 +1130,71 @@ input[type='range']::-moz-range-thumb {
   justify-content: center;
   height: 58px;
 }
+
+/* ---------- 그림 첨부 ---------- */
+.dropzone {
+  padding: 14px;
+  border: 1px dashed var(--ink);
+  border-radius: var(--radius);
+  background: var(--paper);
+  text-align: left;
+}
+.dropzone.is-over {
+  background: rgba(255, 59, 29, 0.08);
+  border-color: var(--accent);
+}
+.dropzone__text {
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.artlist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0;
+}
+.artitem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  text-align: left;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.artitem.is-on {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.artitem img {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  background-color: #fff;
+  background-image: linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%),
+    linear-gradient(45deg, #ddd 25%, transparent 25%, transparent 75%, #ddd 75%);
+  background-size: 10px 10px;
+  background-position: 0 0, 5px 5px;
+  border: 1px solid var(--line);
+}
+.artitem__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.artitem__tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.artactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

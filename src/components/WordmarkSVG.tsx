@@ -1,6 +1,8 @@
-import { useId } from 'react';
+import { useId, useRef } from 'react';
 import type { Wordmark } from '../core/types';
 import { UNIT } from '../core/types';
+import { artHeight, artTransform, contentBox, wordCenter } from '../core/art';
+import type { ArtLayer } from '../core/art';
 
 export interface Layer {
   wordmark: Wordmark;
@@ -14,6 +16,10 @@ interface Props {
   /** 여백(em) */
   pad?: number;
   guides?: boolean;
+  /** 글자 앞뒤에 깔리는 첨부 그림 */
+  art?: ArtLayer[];
+  /** 그림을 눌러 고르고 끌어서 옮길 수 있게 합니다 */
+  artEdit?: { selectedId: string | null; onSelect: (id: string | null) => void; onMove: (id: string, ox: number, oy: number) => void };
   /** 글자를 눌러 고를 수 있게 합니다 (첫 번째 레이어 기준) */
   selectable?: { selected: number | null; onSelect: (i: number) => void };
   label?: string;
@@ -22,8 +28,10 @@ interface Props {
 
 const ACCENT = '#ff3b1d';
 
-export function WordmarkSVG({ layers, pad = 0.12, guides = false, selectable, label, className }: Props) {
+export function WordmarkSVG({ layers, pad = 0.12, guides = false, art = [], artEdit, selectable, label, className }: Props) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const svgRef = useRef<SVGSVGElement>(null);
+  const drag = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number } | null>(null);
   if (layers.length === 0) return null;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const { wordmark: w } of layers) {
@@ -32,17 +40,94 @@ export function WordmarkSVG({ layers, pad = 0.12, guides = false, selectable, la
     x1 = Math.max(x1, w.bbox.x + w.bbox.w);
     y1 = Math.max(y1, w.bbox.y + w.bbox.h);
   }
+  // 첨부 그림까지 모두 보이도록 화면 범위를 넓힙니다.
+  const wmBox = layers[0].wordmark.bbox;
+  const center = wordCenter(wmBox);
+  if (art.length) {
+    const all = contentBox({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, art);
+    x0 = all.x;
+    y0 = all.y;
+    x1 = all.x + all.w;
+    y1 = all.y + all.h;
+  }
+
+  const toSvg = (e: { clientX: number; clientY: number }) => {
+    const svg = svgRef.current!;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const m = svg.getScreenCTM();
+    return m ? pt.matrixTransform(m.inverse()) : pt;
+  };
+  const renderArt = (l: ArtLayer) => {
+    const h = artHeight(l);
+    const sel = artEdit?.selectedId === l.id;
+    return (
+      <g key={l.id} transform={artTransform(l, center)} opacity={l.opacity}>
+        <image
+          href={l.src}
+          x={-l.width / 2}
+          y={-h / 2}
+          width={l.width}
+          height={h}
+          preserveAspectRatio="none"
+          style={artEdit ? { cursor: 'grab', touchAction: 'none' } : undefined}
+          onPointerDown={
+            artEdit
+              ? (e) => {
+                  e.stopPropagation();
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  const p = toSvg(e);
+                  drag.current = { id: l.id, sx: p.x, sy: p.y, ox: l.ox, oy: l.oy };
+                  artEdit.onSelect(l.id);
+                }
+              : undefined
+          }
+          onPointerMove={
+            artEdit
+              ? (e) => {
+                  const d = drag.current;
+                  if (!d || d.id !== l.id) return;
+                  const p = toSvg(e);
+                  artEdit.onMove(l.id, d.ox + (p.x - d.sx), d.oy + (p.y - d.sy));
+                }
+              : undefined
+          }
+          onPointerUp={artEdit ? () => (drag.current = null) : undefined}
+        />
+        {sel && (
+          <rect
+            x={-l.width / 2}
+            y={-h / 2}
+            width={l.width}
+            height={h}
+            fill="none"
+            stroke={ACCENT}
+            strokeWidth={1.5}
+            strokeDasharray="6 4"
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        )}
+      </g>
+    );
+  };
   const p = pad * UNIT;
   const vx = x0 - p, vy = y0 - p, vw = x1 - x0 + p * 2, vh = y1 - y0 + p * 2;
 
   return (
     <svg
+      ref={svgRef}
       className={className}
       viewBox={`${vx} ${vy} ${vw} ${vh}`}
       preserveAspectRatio="xMidYMid meet"
       role="img"
       aria-label={label}
     >
+      {artEdit && (
+        <rect x={vx} y={vy} width={vw} height={vh} fill="transparent" onClick={() => artEdit.onSelect(null)} />
+      )}
+      {art.filter((l) => !l.front).map(renderArt)}
       {layers.map((l, i) => {
         const w = l.wordmark;
         const needsMask = w.knockout || l.ghost;
@@ -113,6 +198,7 @@ export function WordmarkSVG({ layers, pad = 0.12, guides = false, selectable, la
           </g>
         );
       })}
+      {art.filter((l) => l.front).map(renderArt)}
       {selectable &&
         layers[0].wordmark.boxes.map((b, i) => {
           const on = selectable.selected === i;
