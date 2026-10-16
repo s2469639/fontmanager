@@ -4,6 +4,8 @@ import { analyzeText, MAX_CHARS } from '../core/text';
 import { directionOf } from '../data/styles';
 import { MiniWord } from '../components/MiniWord';
 import type { Route } from '../state/router';
+import { openProjectFile } from '../state/projectIO';
+import { ProjectError } from '../core/project';
 
 const EXAMPLES = ['고요', '다온', '모래', '한결', '바람결', '새벽빛'];
 
@@ -13,6 +15,20 @@ export function Start({ go }: { go: (r: Route) => void }) {
   const saved = useStore((s) => s.text);
   const [raw, setRaw] = useState(saved);
   const composing = useRef(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [loadMsg, setLoadMsg] = useState<string | null>(null);
+
+  const openFile = async (file: File) => {
+    setLoadMsg(null);
+    try {
+      await openProjectFile(file);
+      go('edit');
+    } catch (e) {
+      setLoadMsg(e instanceof ProjectError ? e.message : '파일을 열지 못했어요.');
+    } finally {
+      if (fileInput.current) fileInput.current.value = '';
+    }
+  };
 
   const analysis = useMemo(() => analyzeText(raw), [raw]);
   const canGo = analysis.clean.length > 0;
@@ -83,10 +99,27 @@ export function Start({ go }: { go: (r: Route) => void }) {
         )}
       </div>
 
+      {loadMsg && (
+        <p className="hint hint--warn" role="alert" style={{ marginTop: 12 }}>
+          {loadMsg}
+        </p>
+      )}
       <div className="start__actions">
-        <button className="btn btn--ghost" onClick={() => go('home')}>
-          ← 처음으로
-        </button>
+        <div className="start__left">
+          <button className="btn btn--ghost" onClick={() => go('home')}>
+            ← 처음으로
+          </button>
+          <button className="btn btn--soft" onClick={() => fileInput.current?.click()}>
+            저장한 작업 열기
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={(e) => e.target.files?.[0] && void openFile(e.target.files[0])}
+          />
+        </div>
         <button className="btn btn--primary btn--xl" disabled={!canGo} onClick={submit}>
           형태 탐색 시작 <span aria-hidden="true">→</span>
         </button>

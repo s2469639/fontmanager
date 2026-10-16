@@ -6,6 +6,7 @@ import { Segmented } from '../components/Controls';
 import { BG, contrast, resolveColor } from '../core/color';
 import { downloadBlob, exportPngBlob, exportSize, renderToCanvas } from '../core/export';
 import type { Route } from '../state/router';
+import { saveProjectFile } from '../state/projectIO';
 
 const SIZES = [
   { value: '200', label: '작게' },
@@ -166,6 +167,15 @@ export function Result({ go }: { go: (r: Route) => void }) {
           <button className="btn btn--primary btn--xl exportbox__save" onClick={save} disabled={!wordmark || busy}>
             {busy ? '만드는 중…' : 'PNG 저장'}
           </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            style={{ width: '100%', marginTop: 6 }}
+            onClick={() => void saveProjectFile(true)}
+          >
+            작업 파일(.json)로도 저장
+          </button>
+          <p className="field__note">나중에 이어서 고칠 수 있어요. 파일 열기는 이름 입력 화면에 있어요.</p>
         </aside>
       </div>
     </main>

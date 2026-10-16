@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Params } from '../core/types';
 import { disposeArt } from '../core/art';
 import type { ArtLayer } from '../core/art';
+import type { ParsedProject } from '../core/project';
 import { DEFAULT_FX, DEFAULT_JAMO, DEFAULT_PARAMS } from '../core/defaults';
 
 export interface TrailItem {
@@ -36,6 +37,10 @@ interface State {
   setText: (t: string) => void;
   setBg: (b: 'light' | 'dark') => void;
   selectGlyph: (i: number | null) => void;
+  /** 현재 이름은 그대로 두고 디자인(스타일)만 바꿉니다. 되돌릴 수 있습니다. */
+  replaceParams: (params: Params) => void;
+  /** 작업 파일 내용으로 전체 상태를 바꿉니다. */
+  loadProject: (p: ParsedProject, art: ArtLayer[]) => void;
   addArt: (layer: ArtLayer) => void;
   updateArt: (id: string, patch: Partial<ArtLayer>) => void;
   removeArt: (id: string) => void;
@@ -86,6 +91,34 @@ export const useStore = create<State>()(
       setText: (text) => set({ text }),
       setBg: (bg) => set({ bg }),
       selectGlyph: (selectedGlyph) => set({ selectedGlyph }),
+      replaceParams: (params) =>
+        set((s) => ({
+          params,
+          past: [...s.past, s.params].slice(-100),
+          future: [],
+          lastChangeAt: 0,
+          selectedGlyph: null,
+        })),
+      loadProject: (p, art) =>
+        set((s) => {
+          for (const l of s.art) disposeArt(l);
+          return {
+            text: p.text,
+            params: p.params,
+            baseline: p.baseline ?? p.params,
+            baselineLabel: p.baselineLabel || '불러온 작업',
+            bg: p.bg,
+            past: [],
+            future: [],
+            lastChangeAt: 0,
+            selectedGlyph: null,
+            art,
+            selectedArt: null,
+            exploreCenter: null,
+            exploreSiblings: [],
+            trail: [],
+          };
+        }),
       addArt: (layer) => set((s) => ({ art: [...s.art, layer], selectedArt: layer.id, selectedGlyph: null })),
       updateArt: (id, patch) => set((s) => ({ art: s.art.map((l) => (l.id === id ? { ...l, ...patch } : l)) })),
       removeArt: (id) =>

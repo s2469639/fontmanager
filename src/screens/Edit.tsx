@@ -5,6 +5,7 @@ import { WordmarkSVG } from '../components/WordmarkSVG';
 import type { Layer } from '../components/WordmarkSVG';
 import { ControlPanel } from '../components/ControlPanel';
 import { ArtPanel } from '../components/ArtPanel';
+import { PresetPanel } from '../components/PresetPanel';
 import { Segmented } from '../components/Controls';
 import { BG, resolveColor } from '../core/color';
 import { DEFAULT_PARAMS } from '../core/defaults';
@@ -142,6 +143,7 @@ export function Edit({ go }: { go: (r: Route) => void }) {
           )}
         </section>
         <aside className="editor__panel">
+          <PresetPanel />
           <ControlPanel />
           <ArtPanel wm={cur.wordmark} />
         </aside>
