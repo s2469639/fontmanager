@@ -593,16 +593,28 @@ export function isJamoDrawable(ch: string): boolean {
 /** 획 연결이 닿을 수 있는 최대 거리(설계 단위) = link × 이 값 */
 const LINK_MAX_REACH = 30;
 
+interface Anchor {
+  p: Pt;
+  /** 이 점에서 바깥(획이 뻗어 나가는 쪽)을 가리키는 단위 벡터 */
+  dir: Pt;
+}
+type Seg = [Pt, Pt];
+
 interface Geo {
-  segs: [Pt, Pt][];
+  segs: Seg[];
   /** 연결을 시작할 수 있는 점: 열린 획의 양 끝, 닫힌 도형의 상하좌우 끝점 */
-  anchors: Pt[];
+  anchors: Anchor[];
 }
 
-/** 경로 명령을 짧은 선분들로 쪼개고, 연결 후보점을 모읍니다. */
+const unit = (v: Pt): Pt => {
+  const l = Math.hypot(v[0], v[1]) || 1;
+  return [v[0] / l, v[1] / l];
+};
+
+/** 경로 명령을 짧은 선분들로 쪼개고, 연결 후보점과 그 방향을 모읍니다. */
 function geoOf(cmds: Cmd[]): Geo {
-  const segs: [Pt, Pt][] = [];
-  const anchors: Pt[] = [];
+  const segs: Seg[] = [];
+  const anchors: Anchor[] = [];
   let sub: Pt[] = [];
   let closed = false;
   const flush = () => {
@@ -616,6 +628,12 @@ function geoOf(cmds: Cmd[]): Geo {
     const last = sub[sub.length - 1];
     const loops = closed || dist(first, last) < 0.5;
     if (loops) {
+      let cx = 0, cy = 0;
+      for (const p of sub) {
+        cx += p[0];
+        cy += p[1];
+      }
+      const center: Pt = [cx / sub.length, cy / sub.length];
       let top = sub[0], bottom = sub[0], left = sub[0], right = sub[0];
       for (const p of sub) {
         if (p[1] < top[1]) top = p;
@@ -623,8 +641,18 @@ function geoOf(cmds: Cmd[]): Geo {
         if (p[0] < left[0]) left = p;
         if (p[0] > right[0]) right = p;
       }
-      anchors.push(top, bottom, left, right);
-    } else anchors.push(first, last);
+      for (const p of [top, bottom, left, right]) anchors.push({ p, dir: unit([p[0] - center[0], p[1] - center[1]]) });
+    } else {
+      // 열린 획의 끝: 획이 진행하던 방향을 그대로 이어 가는 쪽이 바깥입니다.
+      const back = (from: number, step: number): Pt => {
+        let i = from + step;
+        while (i > 0 && i < sub.length - 1 && dist(sub[i], sub[from]) < 3) i += step;
+        return sub[Math.max(0, Math.min(sub.length - 1, i))];
+      };
+      anchors.push({ p: first, dir: unit([first[0] - back(0, 1)[0], first[1] - back(0, 1)[1]]) });
+      const lb = back(sub.length - 1, -1);
+      anchors.push({ p: last, dir: unit([last[0] - lb[0], last[1] - lb[1]]) });
+    }
     sub = [];
     closed = false;
   };
@@ -672,21 +700,62 @@ function closestOnSegment(p: Pt, a: Pt, b: Pt): Pt {
   return [a[0] + dx * t, a[1] + dy * t];
 }
 
+/** 두 선분이 서로 가로지르는지 (끝점이 닿는 정도는 제외) */
+function crosses(a: Pt, b: Pt, c: Pt, d: Pt): boolean {
+  const o = (p: Pt, q: Pt, r: Pt) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  const d1 = o(a, b, c);
+  const d2 = o(a, b, d);
+  const d3 = o(c, d, a);
+  const d4 = o(c, d, b);
+  return d1 * d2 < -1e-6 && d3 * d4 < -1e-6;
+}
+
 interface Contact {
-  /** 연결점: from(앞 자소) 쪽과 to(뒤 자소) 쪽 */
+  /** 연결의 시작(획의 끝) a, 도착(다른 자소의 선 위) b */
   a: Pt;
   b: Pt;
   d: number;
+  /** a에서 뻗는 방향 */
+  dirA: Pt;
+  /** b에서 a 쪽을 향하는 도착면의 법선 */
+  normB: Pt;
+  /** a가 앞 자소(true)에 있는지 */
+  fromFirst: boolean;
 }
 
-/** 두 자소 사이에서 가장 가까운 (끝점 → 다른 자소의 선) 쌍을 찾습니다. */
+/** 연결선이 이 각도(코사인) 이상 획의 진행 방향과 어긋나면 어색해서 잇지 않습니다. */
+const MIN_ALIGN = 0.5;
+
+/**
+ * 두 자소 사이에서 이을 만한 가장 가까운 (획의 끝 → 다른 자소의 선) 쌍을 찾습니다.
+ * - 획이 뻗던 방향과 크게 어긋나게 꺾이는 연결은 제외
+ * - 연결선이 두 자소의 다른 획을 가로지르는 연결은 제외
+ */
 function nearestContact(ga: Geo, gb: Geo): Contact | null {
   let best: Contact | null = null;
-  const consider = (anchor: Pt, other: Geo, anchorIsA: boolean) => {
+  const allSegs = [...ga.segs, ...gb.segs];
+  const consider = (an: Anchor, other: Geo, fromFirst: boolean) => {
     for (const [s0, s1] of other.segs) {
-      const q = closestOnSegment(anchor, s0, s1);
-      const d = dist(anchor, q);
-      if (!best || d < best.d) best = anchorIsA ? { a: anchor, b: q, d } : { a: q, b: anchor, d };
+      const q = closestOnSegment(an.p, s0, s1);
+      const d = dist(an.p, q);
+      if (d < 0.5) continue;
+      if (best && d >= best.d) continue;
+      const u = unit([q[0] - an.p[0], q[1] - an.p[1]]);
+      if (u[0] * an.dir[0] + u[1] * an.dir[1] < MIN_ALIGN) continue;
+      // 연결선이 다른 획을 가로지르면 건너뜁니다. (연결하려는 두 점 근처의 선은 제외)
+      let blocked = false;
+      for (const [c0, c1] of allSegs) {
+        if (dist(closestOnSegment(an.p, c0, c1), an.p) < 1.5) continue;
+        if (dist(closestOnSegment(q, c0, c1), q) < 1.5) continue;
+        if (crosses(an.p, q, c0, c1)) {
+          blocked = true;
+          break;
+        }
+      }
+      if (blocked) continue;
+      let n = unit([-(s1[1] - s0[1]), s1[0] - s0[0]]);
+      if (n[0] * (an.p[0] - q[0]) + n[1] * (an.p[1] - q[1]) < 0) n = [-n[0], -n[1]];
+      best = { a: an.p, b: q, d, dirA: an.dir, normB: n, fromFirst };
     }
   };
   for (const an of ga.anchors) consider(an, gb, true);
@@ -720,18 +789,21 @@ function linkParts(parts: Cmd[][], reach: number, mode: JamoParams['linkMode']):
   for (let i = 0; i + 1 < parts.length; i++) {
     if (!parts[i].length || !parts[i + 1].length) continue;
     const hit = nearestContact(geoOf(parts[i]), geoOf(parts[i + 1]));
-    if (!hit || hit.d < 0.5) continue;
+    if (!hit) continue;
     // 붙이기는 자소를 움직이므로 잇기보다 짧은 거리만 허용해 글자가 엉키지 않게 합니다.
     if (hit.d > (mode === 'snap' ? reach * 0.45 : reach)) continue;
     if (mode === 'snap') {
-      parts[i + 1] = translateCmds(parts[i + 1], hit.a[0] - hit.b[0], hit.a[1] - hit.b[1]);
-    } else if (mode === 'curve') {
-      const mx = (hit.a[0] + hit.b[0]) / 2;
-      const my = (hit.a[1] + hit.b[1]) / 2;
-      // 직선에서 수직 방향으로 살짝 부풀린 곡선
-      const nx = -(hit.b[1] - hit.a[1]);
-      const ny = hit.b[0] - hit.a[0];
-      bridges.push(['M', hit.a[0], hit.a[1]], ['Q', mx + nx * 0.45, my + ny * 0.45, hit.b[0], hit.b[1]]);
+      // 뒤 자소가 움직입니다. 획의 끝이 뒤 자소에 있으면 그 끝을, 앞 자소에 있으면 도착점을 맞춥니다.
+      const dx = hit.fromFirst ? hit.a[0] - hit.b[0] : hit.b[0] - hit.a[0];
+      const dy = hit.fromFirst ? hit.a[1] - hit.b[1] : hit.b[1] - hit.a[1];
+      parts[i + 1] = translateCmds(parts[i + 1], dx, dy);
+    } else if (mode === 'curve' && hit.d > 5) {
+      // 획이 뻗던 방향으로 나가서, 도착하는 선에는 수직으로 부드럽게 닿는 곡선
+      const k = hit.d * 0.5;
+      bridges.push(
+        ['M', hit.a[0], hit.a[1]],
+        ['C', hit.a[0] + hit.dirA[0] * k, hit.a[1] + hit.dirA[1] * k, hit.b[0] + hit.normB[0] * k, hit.b[1] + hit.normB[1] * k, hit.b[0], hit.b[1]],
+      );
     } else {
       bridges.push(['M', hit.a[0], hit.a[1]], ['L', hit.b[0], hit.b[1]]);
     }
