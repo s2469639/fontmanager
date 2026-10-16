@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useStore } from '../state/store';
+import { isJamoDrawable, partsOf } from '../core/jamo';
 import { LIMITS } from '../core/defaults';
 import { FONTS, getFont } from '../data/fonts';
 import { axisValue } from '../core/fontStore';
 import { Segmented, Slider, EffectCard } from './Controls';
-import type { Cap, Corner, Engine, JamoParams, OShape } from '../core/types';
+import type { Cap, Corner, Engine, GlyphOverride, JamoParams, OShape, Params, PartAdjust } from '../core/types';
 
 const SWATCHES = ['#111111', '#ffffff', '#ff3b1d', '#1f3bff', '#0a8f5b', '#e8a900'];
 
@@ -129,6 +131,13 @@ export function ControlPanel() {
         </>}
       </section>
 
+      {jamo && (
+        <section className="panel__section">
+          <h2 className="panel__title">글자별 편집</h2>
+          <GlyphEditor p={p} set={set} />
+        </section>
+      )}
+
       <section className="panel__section">
         <h2 className="panel__title">조형 효과</h2>
 
@@ -235,9 +244,9 @@ export function ControlPanel() {
 }
 
 interface JamoControlsProps {
-  p: import('../core/types').Params;
+  p: Params;
   setJ: (patch: Partial<JamoParams>) => void;
-  set: (patch: Partial<import('../core/types').Params>) => void;
+  set: (patch: Partial<Params>) => void;
 }
 
 function JamoControls({ p, setJ, set }: JamoControlsProps) {
@@ -338,6 +347,163 @@ function JamoControls({ p, setJ, set }: JamoControlsProps) {
         display={`${p.tracking >= 0 ? '+' : ''}${p.tracking.toFixed(2)}em`}
         onChange={(v) => set({ tracking: v })}
       />
+    </>
+  );
+}
+
+type PartKey = 'L' | 'V' | 'T';
+const PART_LABEL: Record<PartKey, string> = { L: '초성', V: '모음', T: '받침' };
+
+/** 선택한 글자의 초성·모음·받침을 따로 조절합니다. 전체 설정 위에 덧씌워집니다. */
+function GlyphEditor({ p, set }: { p: Params; set: (patch: Partial<Params>) => void }) {
+  const text = useStore((s) => s.text);
+  const sel = useStore((s) => s.selectedGlyph);
+  const select = useStore((s) => s.selectGlyph);
+  const [part, setPart] = useState<PartKey>('L');
+
+  const chars = Array.from(text).filter(isJamoDrawable);
+  const idx = sel !== null && sel < chars.length ? sel : null;
+  const edited = (i: number) => p.glyphs[i] !== undefined;
+  const anyEdited = Object.keys(p.glyphs).length > 0;
+
+  if (chars.length === 0) return <p className="field__note">자소 조립 모드에서 그릴 수 있는 한글이 없어요.</p>;
+
+  const info = idx !== null ? partsOf(chars[idx]) : null;
+  const ov: GlyphOverride = idx !== null ? (p.glyphs[idx] ?? {}) : {};
+  const write = (next: GlyphOverride) => {
+    if (idx === null) return;
+    const glyphs = { ...p.glyphs };
+    if (Object.keys(next).length === 0) delete glyphs[idx];
+    else glyphs[idx] = next;
+    set({ glyphs });
+  };
+  const available = (['L', 'V', 'T'] as PartKey[]).filter((k) => info && info[k]);
+  const activePart: PartKey = available.includes(part) ? part : (available[0] ?? 'L');
+  const adj: Partial<PartAdjust> = ov[activePart] ?? {};
+  const setAdj = (patch: Partial<PartAdjust>) => write({ ...ov, [activePart]: { ...adj, ...patch } });
+
+  return (
+    <>
+      <p className="field__note" style={{ marginTop: 0, marginBottom: 10 }}>
+        글자를 눌러 고르면(미리보기에서 눌러도 돼요) 그 글자의 초성·모음·받침을 따로 바꿀 수 있어요.
+      </p>
+      <div className="glyphchips" role="listbox" aria-label="글자 선택">
+        {chars.map((c, i) => (
+          <button
+            key={i}
+            type="button"
+            role="option"
+            aria-selected={idx === i}
+            className={idx === i ? 'glyphchip is-on' : 'glyphchip'}
+            onClick={() => select(idx === i ? null : i)}
+          >
+            {c}
+            {edited(i) && <span className="glyphchip__dot" aria-label="수정됨" />}
+          </button>
+        ))}
+      </div>
+
+      {idx !== null && info && (
+        <div className="glypheditor">
+          <Segmented<PartKey>
+            label="부분 선택"
+            value={activePart}
+            options={available.map((k) => ({ value: k, label: `${PART_LABEL[k]} ${info[k]}` }))}
+            onChange={setPart}
+          />
+          <div style={{ height: 14 }} />
+          <Slider
+            label="크기"
+            value={adj.scale ?? 1}
+            min={0.4}
+            max={2}
+            step={0.01}
+            display={`${Math.round((adj.scale ?? 1) * 100)}%`}
+            onChange={(v) => setAdj({ scale: v })}
+          />
+          <Slider
+            label="가로 이동"
+            value={adj.dx ?? 0}
+            min={-40}
+            max={40}
+            step={0.5}
+            display={`${adj.dx ?? 0}`}
+            onChange={(v) => setAdj({ dx: v })}
+          />
+          <Slider
+            label="세로 이동"
+            value={adj.dy ?? 0}
+            min={-40}
+            max={40}
+            step={0.5}
+            display={`${adj.dy ?? 0}`}
+            onChange={(v) => setAdj({ dy: v })}
+          />
+          <Slider
+            label="회전"
+            value={adj.rot ?? 0}
+            min={-90}
+            max={90}
+            step={1}
+            display={`${adj.rot ?? 0}°`}
+            onChange={(v) => setAdj({ rot: v })}
+          />
+
+          {info.hasRing && (
+            <div className="field">
+              <span className="field__label">이 글자의 ㅇ·ㅎ 고리</span>
+              <Segmented<'default' | OShape>
+                label="고리 모양"
+                value={ov.oShape ?? 'default'}
+                options={[
+                  { value: 'default', label: '전체 설정' },
+                  { value: 'circle', label: '원' },
+                  { value: 'square', label: '네모' },
+                  { value: 'diamond', label: '마름모' },
+                ]}
+                onChange={(v) => {
+                  const next = { ...ov };
+                  if (v === 'default') delete next.oShape;
+                  else next.oShape = v;
+                  write(next);
+                }}
+              />
+              <div style={{ height: 12 }} />
+              <Slider
+                label="고리 열기"
+                value={ov.circleGap ?? p.jamo.circleGap}
+                {...LIMITS.circleGap}
+                display={ov.circleGap === undefined ? '전체 설정' : ov.circleGap <= 0.04 ? '닫힘' : `${Math.round(ov.circleGap * 100)}%`}
+                onChange={(v) => write({ ...ov, circleGap: v })}
+              />
+            </div>
+          )}
+
+          <Slider
+            label="이 글자의 선 굵기"
+            value={ov.stroke ?? 1}
+            min={0.4}
+            max={3}
+            step={0.05}
+            display={`×${(ov.stroke ?? 1).toFixed(2)}`}
+            hint="전체 선 굵기에 곱해집니다."
+            onChange={(v) => write({ ...ov, stroke: v })}
+          />
+          <button
+            type="button"
+            className="btn btn--soft"
+            disabled={idx === null || !edited(idx)}
+            onClick={() => write({})}
+          >
+            이 글자 되돌리기
+          </button>
+        </div>
+      )}
+      {anyEdited && (
+        <button type="button" className="btn btn--ghost" style={{ marginTop: 8 }} onClick={() => set({ glyphs: {} })}>
+          모든 글자 수정 되돌리기
+        </button>
+      )}
     </>
   );
 }

@@ -25,10 +25,34 @@ export interface JamoParams {
   bounce: number;
 }
 
+/** 한 글자 안의 초성/모음/받침 하나를 따로 조절하는 값 */
+export interface PartAdjust {
+  /** 크기 배율 */
+  scale: number;
+  /** 가로·세로 이동(설계 단위, 한 칸=100) */
+  dx: number;
+  dy: number;
+  /** 회전(도) */
+  rot: number;
+}
+
+/** 한 글자만 따로 바꾸는 값. 지정하지 않은 항목은 전체 설정을 따릅니다. */
+export interface GlyphOverride {
+  L?: Partial<PartAdjust>;
+  V?: Partial<PartAdjust>;
+  T?: Partial<PartAdjust>;
+  oShape?: OShape;
+  circleGap?: number;
+  /** 이 글자의 선 굵기 배율 */
+  stroke?: number;
+}
+
 /** 워드마크의 모든 조형 값. UI와 렌더링 엔진이 공유하는 유일한 상태 형태입니다. */
 export interface Params {
   engine: Engine;
   jamo: JamoParams;
+  /** 자소 조립 모드에서 글자별로 바꾼 값. 키는 그려진 글자의 순서(0부터) */
+  glyphs: Record<number, GlyphOverride>;
   fontId: string;
   /** 0..1. 가변 글꼴은 wght 축, 고정 글꼴은 외곽선 보정(근사)으로 해석됩니다. */
   weight: number;
@@ -113,6 +137,10 @@ export interface Wordmark {
   knockout: boolean;
   /** 실제로 그리는 선 두께 (knockout이면 보이는 두께의 2배) */
   strokeWidth: number;
+  /** paths와 같은 순서의 선 두께 (글자별로 다를 수 있음) */
+  widths: number[];
+  /** paths와 같은 순서의 글자 영역 (선택·클릭용) */
+  boxes: BBox[];
   linejoin: 'miter' | 'round' | 'bevel';
   linecap: Cap;
   miterLimit: number;

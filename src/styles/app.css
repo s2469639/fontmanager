@@ -1032,3 +1032,50 @@ input[type='range']::-moz-range-thumb {
     transition: none !important;
   }
 }
+
+/* ---------- 글자별 편집 ---------- */
+.glyphchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.glyphchip {
+  position: relative;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.glyphchip:hover {
+  border-color: var(--ink);
+}
+.glyphchip.is-on {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.glyphchip__dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.glypheditor {
+  padding: 14px 12px 12px;
+  margin-bottom: 14px;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+.glypheditor .seg {
+  max-width: 100%;
+  overflow-x: auto;
+}

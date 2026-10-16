@@ -14,13 +14,15 @@ interface Props {
   /** 여백(em) */
   pad?: number;
   guides?: boolean;
+  /** 글자를 눌러 고를 수 있게 합니다 (첫 번째 레이어 기준) */
+  selectable?: { selected: number | null; onSelect: (i: number) => void };
   label?: string;
   className?: string;
 }
 
 const ACCENT = '#ff3b1d';
 
-export function WordmarkSVG({ layers, pad = 0.12, guides = false, label, className }: Props) {
+export function WordmarkSVG({ layers, pad = 0.12, guides = false, selectable, label, className }: Props) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   if (layers.length === 0) return null;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -90,7 +92,7 @@ export function WordmarkSVG({ layers, pad = 0.12, guides = false, label, classNa
                   d={d}
                   fill={w.fill ? l.color : 'none'}
                   stroke={w.strokeWidth > 0 ? l.color : 'none'}
-                  strokeWidth={w.strokeWidth}
+                  strokeWidth={w.widths[j] ?? w.strokeWidth}
                   strokeLinecap={w.linecap}
                   strokeLinejoin={w.linejoin}
                   strokeMiterlimit={w.miterLimit}
@@ -101,6 +103,28 @@ export function WordmarkSVG({ layers, pad = 0.12, guides = false, label, classNa
           </g>
         );
       })}
+      {selectable &&
+        layers[0].wordmark.boxes.map((b, i) => {
+          const on = selectable.selected === i;
+          return (
+            <rect
+              key={i}
+              x={b.x - 40}
+              y={b.y - 40}
+              width={b.w + 80}
+              height={b.h + 80}
+              rx={30}
+              fill="transparent"
+              stroke={on ? ACCENT : 'none'}
+              strokeWidth={1.5}
+              strokeDasharray="6 4"
+              vectorEffect="non-scaling-stroke"
+              style={{ cursor: 'pointer' }}
+              onClick={() => selectable.onSelect(i)}
+              aria-label={`${i + 1}번째 글자 선택`}
+            />
+          );
+        })}
       {guides && (
         <g stroke={ACCENT} strokeWidth={1} fill="none" opacity={0.85}>
           <rect x={x0} y={y0} width={x1 - x0} height={y1 - y0} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />

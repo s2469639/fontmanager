@@ -17,6 +17,8 @@ export function Edit({ go }: { go: (r: Route) => void }) {
   const baseline = useStore((s) => s.baseline) ?? DEFAULT_PARAMS;
   const baselineLabel = useStore((s) => s.baselineLabel);
   const bg = useStore((s) => s.bg);
+  const selectedGlyph = useStore((s) => s.selectedGlyph);
+  const selectGlyph = useStore((s) => s.selectGlyph);
   const setBg = useStore((s) => s.setBg);
   const canUndo = useStore((s) => s.past.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
@@ -109,6 +111,11 @@ export function Edit({ go }: { go: (r: Route) => void }) {
               layers={layers}
               pad={0.35}
               guides={guides}
+              selectable={
+                params.engine === 'jamo' && compare === 'current'
+                  ? { selected: selectedGlyph, onSelect: (i) => selectGlyph(selectedGlyph === i ? null : i) }
+                  : undefined
+              }
               label={text}
               className="stage__svg"
             />

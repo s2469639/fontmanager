@@ -33,15 +33,15 @@ export function exportSize(wm: Wordmark, opt: Pick<ExportOptions, 'pxPerEm' | 'p
   return { width: Math.max(1, Math.round(wEm * ppe)), height: Math.max(1, Math.round(hEm * ppe)), clamped, pxPerEm: ppe };
 }
 
-function drawPath(ctx: CanvasRenderingContext2D, d: string, wm: Wordmark, color: string) {
+function drawPath(ctx: CanvasRenderingContext2D, d: string, wm: Wordmark, color: string, width: number) {
   const path = new Path2D(d);
   if (wm.fill) {
     ctx.fillStyle = color;
     ctx.fill(path);
   }
-  if (wm.strokeWidth > 0) {
+  if (width > 0) {
     ctx.strokeStyle = color;
-    ctx.lineWidth = wm.strokeWidth;
+    ctx.lineWidth = width;
     ctx.lineCap = wm.linecap;
     ctx.lineJoin = wm.linejoin;
     ctx.miterLimit = wm.miterLimit;
@@ -79,25 +79,25 @@ export function renderToCanvas(wm: Wordmark, opt: ExportOptions): HTMLCanvasElem
     const tmp = layer();
     const t = tmp.getContext('2d')!;
     setup(t);
-    for (const d of wm.paths) drawPath(t, d, wm, opt.color);
+    wm.paths.forEach((d, i) => drawPath(t, d, wm, opt.color, wm.widths[i] ?? wm.strokeWidth));
     t.globalCompositeOperation = 'destination-out';
     t.fillStyle = '#000';
     for (const d of wm.paths) t.fill(new Path2D(d));
     composite(tmp);
   } else if (wm.opacity >= 1) {
     setup(ctx);
-    for (const d of wm.paths) drawPath(ctx, d, wm, opt.color);
+    wm.paths.forEach((d, i) => drawPath(ctx, d, wm, opt.color, wm.widths[i] ?? wm.strokeWidth));
   } else {
     // SVG의 path별 opacity와 같은 결과가 되도록 글자마다 따로 그린 뒤 합성합니다.
     const tmp = layer();
     const t = tmp.getContext('2d')!;
-    for (const d of wm.paths) {
+    wm.paths.forEach((d, i) => {
       t.setTransform(1, 0, 0, 1, 0, 0);
       t.clearRect(0, 0, tmp.width, tmp.height);
       setup(t);
-      drawPath(t, d, wm, opt.color);
+      drawPath(t, d, wm, opt.color, wm.widths[i] ?? wm.strokeWidth);
       composite(tmp);
-    }
+    });
   }
   return canvas;
 }

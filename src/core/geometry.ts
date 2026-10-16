@@ -65,6 +65,7 @@ export function strokeSpec(p: Params): StrokeSpec {
 interface Placed {
   d: string;
   pts: [number, number][];
+  box: { minX: number; minY: number; maxX: number; maxY: number };
 }
 
 function transformGlyph(
@@ -75,10 +76,15 @@ function transformGlyph(
   skewTan: number,
 ): Placed {
   const pts: [number, number][] = [];
+  const box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
   const tx = (x: number, yUp: number): [number, number] => {
     const X = ox + x * sx + yUp * sy * skewTan;
     const Y = -yUp * sy;
     pts.push([X, Y]);
+    if (X < box.minX) box.minX = X;
+    if (X > box.maxX) box.maxX = X;
+    if (Y < box.minY) box.minY = Y;
+    if (Y > box.maxY) box.maxY = Y;
     return [X, Y];
   };
   let d = '';
@@ -112,7 +118,7 @@ function transformGlyph(
         break;
     }
   }
-  return { d, pts };
+  return { d, pts, box };
 }
 
 /**
@@ -140,6 +146,8 @@ export function buildWordmark(text: string, p: Params): Wordmark | null {
   const fallbackChars: string[] = [];
   const missingChars: string[] = [];
   const paths: string[] = [];
+  const widths: number[] = [];
+  const glyphBoxes: Placed['box'][] = [];
   const all: [number, number][] = [];
   let cursor = 0;
 
@@ -147,7 +155,8 @@ export function buildWordmark(text: string, p: Params): Wordmark | null {
   for (const ch of Array.from(text)) {
     if (jamo && ch !== ' ') {
       // 자소 조립 모드는 한글만 그립니다. 그 밖의 글자는 그리지 않고 알립니다.
-      const g = buildJamoGlyph(ch, p.jamo, drawn);
+      const ov = p.glyphs[drawn];
+      const g = buildJamoGlyph(ch, p.jamo, drawn, ov);
       if (!g) {
         if (!missingChars.includes(ch)) missingChars.push(ch);
         continue;
@@ -155,6 +164,8 @@ export function buildWordmark(text: string, p: Params): Wordmark | null {
       drawn++;
       const placed = transformGlyph(g, cursor, sx, sy, skewTan);
       paths.push(placed.d);
+      widths.push(p.jamo.strokeW * UNIT * (ov?.stroke ?? 1));
+      glyphBoxes.push(placed.box);
       for (const pt of placed.pts) all.push(pt);
       cursor += g.advance * sx + gap;
       continue;
@@ -181,11 +192,14 @@ export function buildWordmark(text: string, p: Params): Wordmark | null {
     if (fromFallback && !fallbackChars.includes(ch)) fallbackChars.push(ch);
     const placed = transformGlyph(shape, cursor, sx, sy, skewTan);
     paths.push(placed.d);
+    widths.push(-1);
+    glyphBoxes.push(placed.box);
     for (const pt of placed.pts) all.push(pt);
     cursor += shape.advance * sx + gap;
   }
 
-  const half = spec.strokeWidth / 2;
+  const maxW = Math.max(spec.strokeWidth, ...widths);
+  const half = maxW / 2;
   let bbox: BBox;
   if (all.length === 0) {
     bbox = { x: 0, y: -800, w: 1000, h: 1000 };
@@ -207,5 +221,17 @@ export function buildWordmark(text: string, p: Params): Wordmark | null {
       h: maxY - minY + grow * 2,
     };
   }
-  return { paths, bbox, ...spec, fallbackChars, missingChars };
+  const boxes: BBox[] = glyphBoxes.map((b, i) => {
+    const g = (widths[i] > 0 ? widths[i] : spec.strokeWidth) / 2;
+    return { x: b.minX - g, y: b.minY - g, w: b.maxX - b.minX + g * 2, h: b.maxY - b.minY + g * 2 };
+  });
+  return {
+    paths,
+    bbox,
+    ...spec,
+    widths: widths.map((w) => (w > 0 ? w : spec.strokeWidth)),
+    boxes,
+    fallbackChars,
+    missingChars,
+  };
 }

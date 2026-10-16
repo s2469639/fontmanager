@@ -18,6 +18,8 @@ interface State {
   future: Params[];
   lastChangeAt: number;
   bg: 'light' | 'dark';
+  /** 글자별 편집에서 선택한 글자(그려진 순서). 저장하지 않습니다. */
+  selectedGlyph: number | null;
 
   /** 형태 탐색 갤러리 상태 */
   exploreCenter: Params | null;
@@ -27,6 +29,7 @@ interface State {
 
   setText: (t: string) => void;
   setBg: (b: 'light' | 'dark') => void;
+  selectGlyph: (i: number | null) => void;
   /** 시안을 골라 편집을 시작합니다. 되돌리기 기록과 비교 기준이 새로 만들어집니다. */
   startEditing: (params: Params, label: string) => void;
   setParams: (patch: Partial<Params>) => void;
@@ -41,7 +44,12 @@ const COALESCE_MS = 700;
 
 /** 저장된 값에 새 필드가 없어도 기본값으로 채웁니다. */
 function fillParams(p?: Partial<Params>): Params {
-  return { ...DEFAULT_PARAMS, ...(p ?? {}), jamo: { ...DEFAULT_JAMO, ...(p?.jamo ?? {}) } };
+  return {
+    ...DEFAULT_PARAMS,
+    ...(p ?? {}),
+    jamo: { ...DEFAULT_JAMO, ...(p?.jamo ?? {}) },
+    glyphs: { ...(p?.glyphs ?? {}) },
+  };
 }
 
 export const useStore = create<State>()(
@@ -55,6 +63,7 @@ export const useStore = create<State>()(
       future: [],
       lastChangeAt: 0,
       bg: 'light',
+      selectedGlyph: null,
       exploreCenter: null,
       exploreSiblings: [],
       exploreSeed: 1,
@@ -62,9 +71,10 @@ export const useStore = create<State>()(
 
       setText: (text) => set({ text }),
       setBg: (bg) => set({ bg }),
+      selectGlyph: (selectedGlyph) => set({ selectedGlyph }),
 
       startEditing: (params, label) =>
-        set({ params, baseline: params, baselineLabel: label, past: [], future: [], lastChangeAt: 0 }),
+        set({ params, baseline: params, baselineLabel: label, past: [], future: [], lastChangeAt: 0, selectedGlyph: null }),
 
       setParams: (patch) => {
         const s = get();

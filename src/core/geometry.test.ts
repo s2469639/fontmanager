@@ -111,3 +111,30 @@ describe('자소 조립 엔진', () => {
     expect(b.strokeWidth).toBeGreaterThan(a.strokeWidth);
   });
 });
+
+describe('글자별 편집', () => {
+  const jamoP = { ...DEFAULT_PARAMS, engine: 'jamo' as const };
+  it('지정한 글자만 바뀌고 나머지는 그대로다', () => {
+    const a = buildWordmark('고요', jamoP)!;
+    const b = buildWordmark('고요', { ...jamoP, glyphs: { 1: { V: { dx: 20, rot: 15 } } } })!;
+    expect(b.paths[0]).toEqual(a.paths[0]);
+    expect(b.paths[1]).not.toEqual(a.paths[1]);
+  });
+  it('글자별 선 굵기 배율이 해당 글자의 widths에만 반영된다', () => {
+    const a = buildWordmark('고요', jamoP)!;
+    const b = buildWordmark('고요', { ...jamoP, glyphs: { 0: { stroke: 2 } } })!;
+    expect(b.widths[0]).toBeCloseTo(a.widths[0] * 2);
+    expect(b.widths[1]).toBeCloseTo(a.widths[1]);
+  });
+  it('글자별 ㅇ 모양이 그 글자에만 적용된다', () => {
+    const a = buildWordmark('아이', jamoP)!;
+    const b = buildWordmark('아이', { ...jamoP, glyphs: { 1: { oShape: 'square' } } })!;
+    expect(b.paths[0]).toEqual(a.paths[0]);
+    expect(b.paths[1]).not.toEqual(a.paths[1]);
+  });
+  it('글자마다 선택 영역(boxes)이 있다', () => {
+    const wm = buildWordmark('온하루', jamoP)!;
+    expect(wm.boxes).toHaveLength(3);
+    expect(wm.boxes[1].x).toBeGreaterThan(wm.boxes[0].x);
+  });
+});

@@ -8,7 +8,7 @@
  * 한계: 뼈대는 이 프로젝트에서 직접 단순하게 정의한 것이라 디자이너가 다듬은 글자체가 아닙니다.
  * 규칙으로 11,172자를 모두 조립하지만, 받침·겹모음·쌍자음 일부 조합은 어색할 수 있습니다.
  */
-import type { Cmd, GlyphShape, JamoParams } from './types';
+import type { Cmd, GlyphOverride, GlyphShape, JamoParams, PartAdjust } from './types';
 
 type Pt = [number, number];
 type Rect = [number, number, number, number]; // x0, y0, x1, y1 (설계 좌표 0..100, y는 아래로)
@@ -114,7 +114,13 @@ interface Layout {
 }
 
 /** 모음 종류 × 받침 유무에 따라 초성·중성·종성이 놓일 칸을 정합니다. (설계 좌표 0..100) */
-function layoutFor(kind: VowelKind, hasFinal: boolean): Layout {
+function layoutFor(kind: VowelKind, hasFinal: boolean, cluster: boolean): Layout {
+  if (cluster) {
+    // 겹받침은 두 자음이 들어가야 해서 받침 칸을 더 넓고 높게 잡고, 위쪽을 조금 줄입니다.
+    if (kind === 'vertical') return { L: [0, 2, 46, 40], V: [58, 0, 100, 50], T: [4, 58, 96, 100] };
+    if (kind === 'horizontal') return { L: [18, 0, 82, 22], V: [0, 29, 100, 50], T: [4, 60, 96, 100] };
+    return { L: [0, 0, 44, 22], V: [0, 0, 100, 52], T: [4, 62, 96, 100] };
+  }
   if (kind === 'vertical') {
     return hasFinal
       ? { L: [0, 6, 46, 48], V: [58, 0, 100, 60], T: [8, 68, 92, 100] }
@@ -149,7 +155,7 @@ interface Placed {
 }
 type PlacedStroke =
   | { t: 'poly'; pts: Pt[]; closed: boolean }
-  | { t: 'ring'; c: Pt; rx: number; ry: number };
+  | { t: 'ring'; c: Pt; rx: number; ry: number; rot: number };
 
 function place(strokes: Stroke[], rect: Rect, out: PlacedStroke[], oAspect: boolean) {
   const [x0, y0, x1, y1] = rect;
@@ -170,6 +176,7 @@ function place(strokes: Stroke[], rect: Rect, out: PlacedStroke[], oAspect: bool
         c: [x0 + s.c[0] * w, y0 + s.c[1] * h],
         rx: oAspect ? r : s.r * w,
         ry: oAspect ? r : s.r * h,
+        rot: 0,
       });
     }
   }
@@ -206,9 +213,33 @@ function placeVowel(name: string, rect: Rect, out: PlacedStroke[]) {
 }
 
 /** 음절 하나를 설계 좌표(0..100)의 스트로크 목록으로 조립합니다. */
-export function assemble(syl: Syllable, jp: JamoParams): Placed {
+const CLUSTERS = new Set(['ㄳ', 'ㄵ', 'ㄶ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅄ']);
+
+/** 한 부분(초성/모음/받침)의 크기·위치·회전을 칸의 중심 기준으로 바꿉니다. */
+function adjustStrokes(strokes: PlacedStroke[], rect: Rect, adj?: Partial<PartAdjust>): PlacedStroke[] {
+  if (!adj) return strokes;
+  const { scale = 1, dx = 0, dy = 0, rot = 0 } = adj;
+  if (scale === 1 && dx === 0 && dy === 0 && rot === 0) return strokes;
+  const cx = (rect[0] + rect[2]) / 2;
+  const cy = (rect[1] + rect[3]) / 2;
+  const a = (rot * Math.PI) / 180;
+  const cos = Math.cos(a);
+  const sin = Math.sin(a);
+  const tp = ([x, y]: Pt): Pt => {
+    const px = (x - cx) * scale;
+    const py = (y - cy) * scale;
+    return [cx + px * cos - py * sin + dx, cy + px * sin + py * cos + dy];
+  };
+  return strokes.map((s): PlacedStroke =>
+    s.t === 'poly'
+      ? { ...s, pts: s.pts.map(tp) }
+      : { ...s, c: tp(s.c), rx: s.rx * scale, ry: s.ry * scale, rot: s.rot + rot },
+  );
+}
+
+export function assemble(syl: Syllable, jp: JamoParams, ov?: GlyphOverride): Placed {
   const kind = vowelKind(syl.medial);
-  const lay = layoutFor(kind, syl.final !== '');
+  const lay = layoutFor(kind, syl.final !== '', CLUSTERS.has(syl.final));
   let L = scaleRect(lay.L, jp.consonantScale);
   let V = scaleRect(lay.V, jp.vowelScale);
   const g = jp.gap;
@@ -220,10 +251,28 @@ export function assemble(syl: Syllable, jp: JamoParams): Placed {
     if (kind === 'horizontal') V = shiftRect(V, 0, g / 2);
   }
   const strokes: PlacedStroke[] = [];
-  placeConsonant(syl.initial, L, strokes);
-  placeVowel(syl.medial, V, strokes);
-  if (syl.final && lay.T) placeConsonant(syl.final, lay.T, strokes);
+  const part = (fn: (r: Rect, out: PlacedStroke[]) => void, rect: Rect, adj?: Partial<PartAdjust>) => {
+    const tmp: PlacedStroke[] = [];
+    fn(rect, tmp);
+    strokes.push(...adjustStrokes(tmp, rect, adj));
+  };
+  part((r, o) => placeConsonant(syl.initial, r, o), L, ov?.L);
+  part((r, o) => placeVowel(syl.medial, r, o), V, ov?.V);
+  if (syl.final && lay.T) part((r, o) => placeConsonant(syl.final, r, o), lay.T, ov?.T);
   return { strokes };
+}
+
+/** UI에서 쓰는 정보: 한 글자가 어떤 부분으로 이루어져 있고, 고리(ㅇ·ㅎ)가 있는지 */
+export function partsOf(ch: string): { L?: string; V?: string; T?: string; hasRing: boolean } | null {
+  const syl = decompose(ch);
+  if (!syl) {
+    if (ch in CONSONANTS || ch in PAIRS) return { L: ch, hasRing: ch === 'ㅇ' || ch === 'ㅎ' };
+    if (ch in VOWELS || ch in COMPOUND) return { V: ch, hasRing: false };
+    return null;
+  }
+  const ring = (c: string) => c === 'ㅇ' || c === 'ㅎ';
+  const hasRing = ring(syl.initial) || (syl.final !== '' && ring(syl.final)) || (PAIRS[syl.final]?.some(ring) ?? false);
+  return { L: syl.initial, V: syl.medial, T: syl.final || undefined, hasRing };
 }
 
 /** 한글 낱자(ㄱ, ㅏ 등)만 입력했을 때의 조립 */
@@ -316,19 +365,28 @@ function arc(cx: number, cy: number, rx: number, ry: number, a0: number, a1: num
   return cmds;
 }
 
-function ringCmds(c: Pt, rx: number, ry: number, jp: JamoParams, radius: number): Cmd[] {
+function rotateAround(p: Pt, c: Pt, deg: number): Pt {
+  if (!deg) return p;
+  const a = (deg * Math.PI) / 180;
+  const dx = p[0] - c[0];
+  const dy = p[1] - c[1];
+  return [c[0] + dx * Math.cos(a) - dy * Math.sin(a), c[1] + dx * Math.sin(a) + dy * Math.cos(a)];
+}
+
+function ringCmds(c: Pt, rx: number, ry: number, rot: number, jp: JamoParams, radius: number): Cmd[] {
   const open = jp.circleGap > 0.04;
   if (jp.oShape === 'circle') {
     if (!open) return [...arc(c[0], c[1], rx, ry, -Math.PI / 2, (3 * Math.PI) / 2, true), ['Z']];
     // 열린 원: 오른쪽 위(-45°)를 중심으로 circleGap 비율만큼 틈을 둡니다.
     const gapAngle = jp.circleGap * Math.PI * 2;
-    const center = -Math.PI / 4;
+    const center = -Math.PI / 4 + (rot * Math.PI) / 180;
     return arc(c[0], c[1], rx, ry, center + gapAngle / 2, center + Math.PI * 2 - gapAngle / 2, true);
   }
-  const pts: Pt[] =
+  const base: Pt[] =
     jp.oShape === 'square'
       ? [[c[0] - rx, c[1] - ry], [c[0] + rx, c[1] - ry], [c[0] + rx, c[1] + ry], [c[0] - rx, c[1] + ry]]
       : [[c[0], c[1] - ry], [c[0] + rx, c[1]], [c[0], c[1] + ry], [c[0] - rx, c[1]]];
+  const pts = base.map((p) => rotateAround(p, c, rot));
   if (!open) return roundedPoly(pts, true, radius);
   // 열린 사각/마름모: 시작점에서 한 바퀴 돌되 닫지 않고, 틈 크기만큼 마지막 변을 줄입니다.
   const ring = [...pts, pts[0]];
@@ -367,15 +425,17 @@ export function isJamoDrawable(ch: string): boolean {
  * 글자 하나를 선 경로로 조립합니다. index는 글자 순서(bounce 효과용).
  * 한글이 아닌 글자는 null.
  */
-export function buildJamoGlyph(ch: string, jp: JamoParams, index: number): GlyphShape | null {
+export function buildJamoGlyph(ch: string, jp: JamoParams, index: number, ov?: GlyphOverride): GlyphShape | null {
   const syl = decompose(ch);
-  const placed = syl ? assemble(syl, jp) : assembleLoose(ch, jp);
+  const placed = syl ? assemble(syl, jp, ov) : assembleLoose(ch, jp);
   if (!placed) return null;
   const radius = jp.roundness * 14;
+  // 이 글자만 ㅇ 모양·열림이 다를 수 있습니다.
+  const local: JamoParams = { ...jp, oShape: ov?.oShape ?? jp.oShape, circleGap: ov?.circleGap ?? jp.circleGap };
   const cmds: Cmd[] = [];
   for (const s of placed.strokes) {
     if (s.t === 'poly') cmds.push(...roundedPoly(s.pts, s.closed, radius));
-    else cmds.push(...ringCmds(s.c, s.rx, s.ry, jp, Math.min(radius, Math.min(s.rx, s.ry) * 0.9)));
+    else cmds.push(...ringCmds(s.c, s.rx, s.ry, s.rot, local, Math.min(radius, Math.min(s.rx, s.ry) * 0.9)));
   }
   const bounce = jp.bounce * 1000 * (index % 2 === 0 ? 1 : -1);
   return { char: ch, cmds: toGlyphSpace(cmds, bounce), advance: CELL, fromFallback: false };
