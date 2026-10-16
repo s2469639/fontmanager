@@ -480,8 +480,8 @@ function GlyphEditor({ p, set }: { p: Params; set: (patch: Partial<Params>) => v
           <Slider
             label="크기"
             value={adj.scale ?? 1}
-            min={0.4}
-            max={2}
+            min={0.15}
+            max={3.5}
             step={0.01}
             display={`${Math.round((adj.scale ?? 1) * 100)}%`}
             onChange={(v) => setAdj({ scale: v })}
@@ -489,8 +489,8 @@ function GlyphEditor({ p, set }: { p: Params; set: (patch: Partial<Params>) => v
           <Slider
             label="가로 이동"
             value={adj.dx ?? 0}
-            min={-40}
-            max={40}
+            min={-120}
+            max={120}
             step={0.5}
             display={`${adj.dx ?? 0}`}
             onChange={(v) => setAdj({ dx: v })}
@@ -498,8 +498,8 @@ function GlyphEditor({ p, set }: { p: Params; set: (patch: Partial<Params>) => v
           <Slider
             label="세로 이동"
             value={adj.dy ?? 0}
-            min={-40}
-            max={40}
+            min={-120}
+            max={120}
             step={0.5}
             display={`${adj.dy ?? 0}`}
             onChange={(v) => setAdj({ dy: v })}
@@ -507,8 +507,8 @@ function GlyphEditor({ p, set }: { p: Params; set: (patch: Partial<Params>) => v
           <Slider
             label="회전"
             value={adj.rot ?? 0}
-            min={-90}
-            max={90}
+            min={-180}
+            max={180}
             step={1}
             display={`${adj.rot ?? 0}°`}
             onChange={(v) => setAdj({ rot: v })}
@@ -555,8 +555,8 @@ function GlyphEditor({ p, set }: { p: Params; set: (patch: Partial<Params>) => v
           <Slider
             label="이 글자의 선 굵기"
             value={ov.stroke ?? 1}
-            min={0.4}
-            max={3}
+            min={0.15}
+            max={6}
             step={0.05}
             display={`×${(ov.stroke ?? 1).toFixed(2)}`}
             hint="전체 선 굵기에 곱해집니다."
