@@ -1,0 +1,80 @@
+import { beforeAll, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { setFontFetcher, loadFont } from './fontStore';
+import { buildWordmark } from './geometry';
+import { DEFAULT_PARAMS } from './defaults';
+import { analyzeText } from './text';
+
+beforeAll(async () => {
+  setFontFetcher(async (file) => new Uint8Array(readFileSync(`public/fonts/${file}`)));
+  await Promise.all(['pretendard', 'jua', 'do-hyeon'].map(loadFont));
+});
+
+describe('analyzeText', () => {
+  it('NFD 입력을 NFC로 바꾼다', () => {
+    expect(analyzeText('고요'.normalize('NFD')).clean).toBe('고요');
+  });
+  it('허용되지 않는 글자는 제거하고 알려 준다', () => {
+    const r = analyzeText('고요😀');
+    expect(r.clean).toBe('고요');
+    expect(r.removed).toEqual(['😀']);
+  });
+  it('12자로 제한한다', () => {
+    const r = analyzeText('가'.repeat(20));
+    expect(Array.from(r.clean)).toHaveLength(12);
+    expect(r.tooLong).toBe(true);
+  });
+});
+
+describe('buildWordmark', () => {
+  it('글꼴이 로드되지 않았으면 null', () => {
+    expect(buildWordmark('고요', { ...DEFAULT_PARAMS, fontId: 'noto-serif-kr' })).toBeNull();
+  });
+  it('글자 수만큼 경로를 만든다', () => {
+    const wm = buildWordmark('고요', DEFAULT_PARAMS)!;
+    expect(wm.paths).toHaveLength(2);
+    expect(wm.bbox.w).toBeGreaterThan(1200);
+  });
+  it('굵기를 바꾸면 윤곽선이 달라진다 (가변 축)', () => {
+    const a = buildWordmark('고요', { ...DEFAULT_PARAMS, weight: 0.1 })!;
+    const b = buildWordmark('고요', { ...DEFAULT_PARAMS, weight: 0.9 })!;
+    expect(a.paths[0]).not.toEqual(b.paths[0]);
+  });
+  it('폭을 줄이면 전체 가로 길이가 줄어든다', () => {
+    const a = buildWordmark('고요', DEFAULT_PARAMS)!;
+    const b = buildWordmark('고요', { ...DEFAULT_PARAMS, width: 60 })!;
+    expect(b.bbox.w).toBeLessThan(a.bbox.w * 0.7);
+  });
+  it('자간을 늘리면 전체 길이가 늘어난다', () => {
+    const a = buildWordmark('고요', DEFAULT_PARAMS)!;
+    const b = buildWordmark('고요', { ...DEFAULT_PARAMS, tracking: 0.4 })!;
+    expect(b.bbox.w - a.bbox.w).toBeCloseTo(400, -1);
+  });
+  it('기울기는 가로 범위를 넓힌다', () => {
+    const a = buildWordmark('고요', DEFAULT_PARAMS)!;
+    const b = buildWordmark('고요', { ...DEFAULT_PARAMS, skewOn: true, skew: 20 })!;
+    expect(b.bbox.w).toBeGreaterThan(a.bbox.w);
+  });
+  it('글꼴에 없는 글자는 대체 글꼴로 그린다', () => {
+    // 주아(Jua)는 약 2,400자만 지원 — '쀍'은 없다
+    const wm = buildWordmark('쀍', { ...DEFAULT_PARAMS, fontId: 'jua', weight: 0 })!;
+    expect(wm.fallbackChars).toEqual(['쀍']);
+    expect(wm.paths).toHaveLength(1);
+  });
+  it('고정 글꼴은 굵기를 외곽선 보정으로 표현한다', () => {
+    const a = buildWordmark('고요', { ...DEFAULT_PARAMS, fontId: 'do-hyeon', weight: 0 })!;
+    const b = buildWordmark('고요', { ...DEFAULT_PARAMS, fontId: 'do-hyeon', weight: 1 })!;
+    expect(a.strokeWidth).toBe(0);
+    expect(b.strokeWidth).toBeGreaterThan(0);
+  });
+});
+
+describe('모서리 굵기 보정', () => {
+  it('가변 글꼴은 모서리를 둥글려도 획 두께가 크게 늘지 않는다', () => {
+    const sharp = buildWordmark('이', { ...DEFAULT_PARAMS, weight: 0.5 })!;
+    const round = buildWordmark('이', { ...DEFAULT_PARAMS, weight: 0.5, corner: 'round', cornerAmount: 1 })!;
+    // 선 두께만큼 bbox가 커지지만, 보정이 없다면 80 이상 늘어난다.
+    expect(round.bbox.w - sharp.bbox.w).toBeLessThan(sharp.bbox.w * 0.12);
+    expect(round.strokeWidth).toBeGreaterThan(0);
+  });
+});

@@ -1,0 +1,98 @@
+export type Corner = 'sharp' | 'round' | 'bevel';
+
+/** 워드마크의 모든 조형 값. UI와 렌더링 엔진이 공유하는 유일한 상태 형태입니다. */
+export interface Params {
+  fontId: string;
+  /** 0..1. 가변 글꼴은 wght 축, 고정 글꼴은 외곽선 보정(근사)으로 해석됩니다. */
+  weight: number;
+  /** 가로 비율(%). 글꼴의 wdth 축이 아니라 가로 스케일입니다. */
+  width: number;
+  /** 자간(em). */
+  tracking: number;
+  corner: Corner;
+  /** 0..1 */
+  cornerAmount: number;
+
+  skewOn: boolean;
+  /** 도 */
+  skew: number;
+
+  vScaleOn: boolean;
+  /** 세로 비율(%) */
+  vScale: number;
+
+  outlineOn: boolean;
+  /** em */
+  outlineWidth: number;
+
+  overlapOn: boolean;
+  /** 추가로 겹치는 정도(em) */
+  overlapAmount: number;
+  /** 겹침 효과의 글자 불투명도 */
+  overlapOpacity: number;
+
+  /** 'auto'는 배경에 맞춰 검정/흰색 */
+  color: string;
+}
+
+export type WeightMode =
+  | { kind: 'axis'; min: number; max: number }
+  | { kind: 'stroke'; maxEm: number };
+
+export interface FontDef {
+  id: string;
+  name: string;
+  nameKo: string;
+  file: string;
+  /** 한 줄 설명 (UI에 표시) */
+  vibe: string;
+  weight: WeightMode;
+  license: 'OFL-1.1';
+  licenseFile: string;
+  copyright: string;
+  source: string;
+  /** 이 파일이 지원하는 글자 범위에 대한 안내 */
+  coverageNote: string;
+}
+
+/** 폰트 단위 1000 = 1em, y축은 위가 +(글꼴 좌표계) */
+export type Cmd =
+  | ['M', number, number]
+  | ['L', number, number]
+  | ['Q', number, number, number, number]
+  | ['C', number, number, number, number, number, number]
+  | ['Z'];
+
+export interface GlyphShape {
+  char: string;
+  cmds: Cmd[];
+  advance: number;
+  fromFallback: boolean;
+}
+
+export interface BBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface Wordmark {
+  /** 최종 좌표(1em = 1000, y는 SVG 방향)로 변환된 글자별 경로 */
+  paths: string[];
+  bbox: BBox;
+  fill: boolean;
+  /** 외곽선만 보기: 선을 그린 뒤 글자 안쪽을 지워 바깥 테두리만 남깁니다(겹친 획의 안쪽 선이 보이지 않음) */
+  knockout: boolean;
+  /** 실제로 그리는 선 두께 (knockout이면 보이는 두께의 2배) */
+  strokeWidth: number;
+  linejoin: 'miter' | 'round' | 'bevel';
+  miterLimit: number;
+  opacity: number;
+  /** 선택한 글꼴이 지원하지 않아 대체 글꼴로 그린 글자 */
+  fallbackChars: string[];
+  /** 어느 글꼴에도 없어 그리지 못한 글자 */
+  missingChars: string[];
+}
+
+export const UNIT = 1000;

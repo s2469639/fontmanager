@@ -1,0 +1,118 @@
+import type { FontDef } from '../core/types';
+
+/**
+ * 글꼴 레지스트리. 모든 글꼴은 SIL OFL 1.1 (수정·재배포 허용).
+ * 새 글꼴을 추가할 때는 licenseFile을 함께 넣어야 합니다.
+ */
+export const FONTS: FontDef[] = [
+  {
+    id: 'pretendard',
+    name: 'Pretendard',
+    nameKo: '프리텐다드',
+    file: 'Pretendard.woff',
+    vibe: '중립적이고 기하학적인 산세리프',
+    weight: { kind: 'axis', min: 45, max: 930 },
+    license: 'OFL-1.1',
+    licenseFile: 'licenses/pretendard-OFL.txt',
+    copyright: 'Copyright (c) 2021, Kil Hyung-jin',
+    source: 'https://github.com/orioncactus/pretendard',
+    coverageNote: '한글 11,172자 전체 지원 (모든 글꼴의 대체 글꼴)',
+  },
+  {
+    id: 'noto-sans-kr',
+    name: 'Noto Sans KR',
+    nameKo: '노토 산스',
+    file: 'NotoSansKR.woff',
+    vibe: '균형 잡힌 고딕, 굵기 폭이 넓음',
+    weight: { kind: 'axis', min: 100, max: 900 },
+    license: 'OFL-1.1',
+    licenseFile: 'licenses/notosanskr-OFL.txt',
+    copyright: 'Copyright 2014-2021 Adobe',
+    source: 'https://fonts.google.com/noto/specimen/Noto+Sans+KR',
+    coverageNote: '자주 쓰는 한글 2,350자 (그 밖의 글자는 대체 글꼴)',
+  },
+  {
+    id: 'noto-serif-kr',
+    name: 'Noto Serif KR',
+    nameKo: '노토 세리프',
+    file: 'NotoSerifKR.woff',
+    vibe: '날카로운 끝맺음의 명조',
+    weight: { kind: 'axis', min: 200, max: 900 },
+    license: 'OFL-1.1',
+    licenseFile: 'licenses/notoserifkr-OFL.txt',
+    copyright: 'Copyright 2017-2024 Adobe',
+    source: 'https://fonts.google.com/noto/specimen/Noto+Serif+KR',
+    coverageNote: '자주 쓰는 한글 2,350자 (그 밖의 글자는 대체 글꼴)',
+  },
+  {
+    id: 'ibm-plex-sans-kr',
+    name: 'IBM Plex Sans KR',
+    nameKo: 'IBM 플렉스',
+    file: 'IBMPlexSansKR.woff',
+    vibe: '기계적이고 각진 인상의 고딕',
+    weight: { kind: 'stroke', maxEm: 0.06 },
+    license: 'OFL-1.1',
+    licenseFile: 'licenses/ibmplexsanskr-OFL.txt',
+    copyright: 'Copyright 2018 IBM Corp.',
+    source: 'https://github.com/IBM/plex',
+    coverageNote: '한글 11,172자 전체 지원',
+  },
+  {
+    id: 'gowun-batang',
+    name: 'Gowun Batang',
+    nameKo: '고운바탕',
+    file: 'GowunBatang.woff',
+    vibe: '온화한 필기 감각의 바탕체',
+    weight: { kind: 'stroke', maxEm: 0.05 },
+    license: 'OFL-1.1',
+    licenseFile: 'licenses/gowunbatang-OFL.txt',
+    copyright: 'Copyright 2021 The Gowun Batang Project Authors',
+    source: 'https://github.com/yangheeryu/Gowun-Batang',
+    coverageNote: '자주 쓰는 한글 2,350자 (그 밖의 글자는 대체 글꼴)',
+  },
+  {
+    id: 'jua',
+    name: 'Jua',
+    nameKo: '주아',
+    file: 'Jua.woff',
+    vibe: '통통하고 둥근 손글씨 느낌',
+    weight: { kind: 'stroke', maxEm: 0.05 },
+    license: 'OFL-1.1',
+    licenseFile: 'licenses/jua-OFL.txt',
+    copyright: 'Copyright 2018 The BM JUA Project Authors',
+    source: 'https://fonts.google.com/specimen/Jua',
+    coverageNote: '일부 한글만 지원 (약 2,400자, 그 밖의 글자는 대체 글꼴)',
+  },
+  {
+    id: 'black-han-sans',
+    name: 'Black Han Sans',
+    nameKo: '블랙한산스',
+    file: 'BlackHanSans.woff',
+    vibe: '묵직하고 단단한 블록형 고딕',
+    weight: { kind: 'stroke', maxEm: 0.04 },
+    license: 'OFL-1.1',
+    licenseFile: 'licenses/blackhansans-OFL.txt',
+    copyright: 'Copyright 2015 The Black Han Sans Project Authors',
+    source: 'https://github.com/zesstype/Black-Han-Sans',
+    coverageNote: '일부 한글만 지원 (약 2,600자, 그 밖의 글자는 대체 글꼴)',
+  },
+  {
+    id: 'do-hyeon',
+    name: 'Do Hyeon',
+    nameKo: '도현',
+    file: 'DoHyeon.woff',
+    vibe: '좁고 높은 응축형 고딕',
+    weight: { kind: 'stroke', maxEm: 0.05 },
+    license: 'OFL-1.1',
+    licenseFile: 'licenses/dohyeon-OFL.txt',
+    copyright: 'Copyright 2018 The Do Hyeon Project Authors',
+    source: 'https://fonts.google.com/specimen/Do+Hyeon',
+    coverageNote: '일부 한글만 지원 (약 2,400자, 그 밖의 글자는 대체 글꼴)',
+  },
+];
+
+export const FALLBACK_FONT_ID = 'pretendard';
+
+export function getFont(id: string): FontDef {
+  return FONTS.find((f) => f.id === id) ?? FONTS[0];
+}
