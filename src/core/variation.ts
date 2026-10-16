@@ -55,7 +55,7 @@ function mutateJamo(center: Params, rng: () => number, text: string): Params {
   // 획 연결: 켜져 있으면 정도와 방식을 흔들고, 꺼져 있으면 가끔 켭니다.
   if (j.link > 0.01 ? rng() < 0.5 : rng() < 0.3) {
     j.link = rng() < 0.15 ? 0 : Math.round((0.3 + rng() * 0.7) * 100) / 100;
-    const modes: LinkMode[] = ['bridge', 'curve', 'bridge', 'snap'];
+    const modes: LinkMode[] = ['bridge', 'curve', 'flow', 'flow', 'snap'];
     j.linkMode = modes[Math.floor(rng() * modes.length)];
   }
   p.width = Math.round(clamp(center.width + jitter(rng, 18), 70, 130));
@@ -165,7 +165,7 @@ function describeJamoDiff(p: Params, base: Params): string[] {
   if (Math.abs(dv) > 0.1) tags.push(dv > 0 ? '모음 크게' : '모음 작게');
   if (Math.abs(a.gap - b.gap) > 5) tags.push(a.gap > b.gap ? '초성·모음 멀게' : '초성·모음 붙게');
   if (a.bounce > 0.015 && b.bounce <= 0.015) tags.push('위아래 어긋남');
-  if (a.link > 0.01 && b.link <= 0.01) tags.push(a.linkMode === 'curve' ? '곡선 연결' : a.linkMode === 'snap' ? '붙이기' : '획 연결');
+  if (a.link > 0.01 && b.link <= 0.01) tags.push(a.linkMode === 'curve' ? '곡선 연결' : a.linkMode === 'snap' ? '붙이기' : a.linkMode === 'flow' ? '한 획' : '획 연결');
   else if (a.link <= 0.01 && b.link > 0.01) tags.push('연결 끊기');
   else if (a.link > 0.01 && Math.abs(a.link - b.link) > 0.3) tags.push(a.link > b.link ? '더 멀리 연결' : '연결 줄이기');
   if (Math.abs(p.width - base.width) > 8) tags.push(p.width > base.width ? '더 넓게' : '더 좁게');

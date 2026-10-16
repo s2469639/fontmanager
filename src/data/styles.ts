@@ -47,9 +47,9 @@ const JAMO_DIRECTIONS: Direction[] = [
     index: '03',
     nameKo: '열린',
     nameEn: 'Open',
-    note: '고리가 열리고 획이 곡선으로 이어지며 글자가 위아래로 어긋납니다.',
+    note: '고리가 열리고 획이 펜을 떼지 않은 듯 한 줄로 이어지며 글자가 위아래로 어긋납니다.',
     params: jamo(
-      { strokeW: 0.032, cap: 'round', roundness: 0.8, circleGap: 0.14, bounce: 0.04, gap: 6, vowelScale: 1.08, link: 0.7, linkMode: 'curve' },
+      { strokeW: 0.032, cap: 'round', roundness: 0.8, circleGap: 0.14, bounce: 0.04, gap: 6, vowelScale: 1.08, link: 0.8, linkMode: 'flow' },
       { tracking: 0.06, variants: { ㄱ: 2, ㄴ: 2, ㅅ: 2 } },
     ),
     siblings: [],

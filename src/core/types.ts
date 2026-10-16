@@ -2,8 +2,8 @@ export type Corner = 'sharp' | 'round' | 'bevel';
 
 export type Cap = 'round' | 'butt' | 'square';
 export type OShape = 'circle' | 'square' | 'diamond';
-/** 획 연결 방식: snap은 자소를 움직여 붙이고, bridge는 직선으로, curve는 곡선으로 잇습니다. */
-export type LinkMode = 'snap' | 'bridge' | 'curve';
+/** 획 연결 방식: snap은 자소를 움직여 붙이고, bridge는 직선으로, curve는 곡선으로 잇고, flow는 끝과 끝을 매끄럽게 이어 한 획으로 합칩니다. */
+export type LinkMode = 'snap' | 'bridge' | 'curve' | 'flow';
 /** font: 글꼴 윤곽선 기반 / jamo: 자음·모음을 선으로 직접 조립(프로토타입) */
 export type Engine = 'font' | 'jamo';
 

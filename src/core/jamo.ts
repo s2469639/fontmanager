@@ -9,6 +9,7 @@
  * 규칙으로 11,172자를 모두 조립하지만, 받침·겹모음·쌍자음 일부 조합은 어색할 수 있습니다.
  */
 import type { Cmd, GlyphOverride, GlyphShape, JamoParams, PartAdjust } from './types';
+import { flowMerge } from './flow';
 
 type Pt = [number, number];
 type Rect = [number, number, number, number]; // x0, y0, x1, y1 (설계 좌표 0..100, y는 아래로)
@@ -592,6 +593,8 @@ export function isJamoDrawable(ch: string): boolean {
 
 /** 획 연결이 닿을 수 있는 최대 거리(설계 단위) = link × 이 값 */
 const LINK_MAX_REACH = 30;
+/** 한 획으로 이어 그릴 때 닿을 수 있는 최대 거리 = link × 이 값 */
+const FLOW_MAX_REACH = 42;
 
 interface Anchor {
   p: Pt;
@@ -832,8 +835,10 @@ export function buildJamoGlyph(
   const local: JamoParams = { ...jp, oShape: ov?.oShape ?? jp.oShape, circleGap: ov?.circleGap ?? jp.circleGap };
   const partCmds = placed.parts.map((strokes) => strokes.flatMap((s) => strokeCmds(s, radius, local)));
   const link = ov?.link ?? jp.link;
-  const bridges = linkParts(partCmds, link * LINK_MAX_REACH, jp.linkMode);
-  const cmds: Cmd[] = [...partCmds.flat(), ...bridges];
+  const cmds: Cmd[] =
+    jp.linkMode === 'flow'
+      ? flowMerge(partCmds.flat(), link * FLOW_MAX_REACH)
+      : [...partCmds.flat(), ...linkParts(partCmds, link * LINK_MAX_REACH, jp.linkMode)];
   const bounce = jp.bounce * 1000 * (index % 2 === 0 ? 1 : -1);
   return { char: ch, cmds: toGlyphSpace(cmds, bounce), advance: CELL, fromFallback: false };
 }

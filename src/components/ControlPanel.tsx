@@ -330,13 +330,16 @@ function JamoControls({ p, setJ, set }: JamoControlsProps) {
               { value: 'bridge', label: '직선 잇기' },
               { value: 'curve', label: '곡선 잇기' },
               { value: 'snap', label: '붙이기' },
+              { value: 'flow', label: '한 획' },
             ]}
             onChange={(v) => setJ({ linkMode: v })}
           />
           <p className="field__note">
             {j.linkMode === 'snap'
               ? '자소를 살짝 움직여 서로 닿게 합니다. 가까운 곳만 붙습니다.'
-              : '끊어진 두 곳 사이에 선을 하나 더 긋습니다.'}
+              : j.linkMode === 'flow'
+                ? '획의 끝과 끝(닫힌 ㅇ은 한 곳을 풀어서)을 방향이 맞게 이어 펜을 떼지 않은 듯 한 줄로 합칩니다. 방향이 맞지 않는 곳은 잇지 않아요.'
+                : '끊어진 두 곳 사이에 선을 하나 더 긋습니다.'}
           </p>
         </div>
       )}

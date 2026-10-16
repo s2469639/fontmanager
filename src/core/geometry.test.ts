@@ -267,3 +267,65 @@ describe('형태 변형 효과', () => {
     expect(buildWordmark('고요', jamoP)!.cuts).toEqual([]);
   });
 });
+
+import { flowMerge, reverseOpen } from './flow';
+import type { Cmd } from './types';
+
+describe('한 획으로 이어 그리기', () => {
+  const pathCount = (cmds: Cmd[]) => cmds.filter((c) => c[0] === 'M').length;
+  const jamoP = { ...DEFAULT_PARAMS, engine: 'jamo' as const };
+  const flowP = (link: number, gap = 6) => ({ ...jamoP, jamo: { ...DEFAULT_JAMO, link, linkMode: 'flow' as const, gap } });
+
+  it('경로를 거꾸로 뒤집었다가 다시 뒤집으면 원래와 같다', () => {
+    const cmds: Cmd[] = [['M', 0, 0], ['L', 10, 0], ['Q', 20, 0, 20, 10], ['C', 20, 20, 10, 30, 0, 30]];
+    expect(reverseOpen(reverseOpen(cmds))).toEqual(cmds);
+    const r = reverseOpen(cmds);
+    expect(r[0]).toEqual(['M', 0, 30]);
+  });
+
+  it('끝과 끝이 방향이 맞게 가까우면 하나의 경로로 합친다', () => {
+    // 오른쪽으로 가던 선의 끝(10,0) 바로 앞에서, 같은 방향으로 이어지는 선이 시작
+    const cmds: Cmd[] = [['M', 0, 0], ['L', 10, 0], ['M', 16, 0], ['L', 30, 0]];
+    const merged = flowMerge(cmds, 20);
+    expect(pathCount(merged)).toBe(1);
+    expect(merged.some((c) => c[0] === 'C')).toBe(true);
+  });
+
+  it('완만하게 꺾이는 연결은 하고, 연결선과 직각으로 마주 서는 연결은 하지 않는다', () => {
+    // 오른쪽으로 가던 선이 비스듬히 아래로 이어지는 선을 만나는 것은 자연스러운 흐름
+    expect(pathCount(flowMerge([['M', 0, 0], ['L', 10, 0], ['M', 14, 3], ['L', 14, 30]], 20))).toBe(1);
+    // 같은 높이에서 세로선이 정면으로 가로막는 경우(연결선과 직각)는 이을 수 없다
+    expect(pathCount(flowMerge([['M', 0, 0], ['L', 10, 0], ['M', 14, 0], ['L', 14, 30]], 20))).toBe(2);
+  });
+
+  it('다른 획을 가로지르는 연결은 하지 않는다', () => {
+    const cmds: Cmd[] = [['M', 0, 0], ['L', 10, 0], ['M', 16, 0], ['L', 30, 0], ['M', 13, -10], ['L', 13, 10]];
+    expect(pathCount(flowMerge(cmds, 20))).toBe(3);
+  });
+
+  it('거리가 범위 밖이면 그대로 둔다', () => {
+    const cmds: Cmd[] = [['M', 0, 0], ['L', 10, 0], ['M', 60, 0], ['L', 80, 0]];
+    expect(flowMerge(cmds, 20)).toEqual(cmds);
+  });
+
+  it('연결을 끄면 기존 결과와 같고, 켜면 경로 수가 줄거나 같다', () => {
+    for (const w of ['고요한', '온하루', '담아', '꿈꾸는']) {
+      const off = buildWordmark(w, flowP(0))!;
+      const on = buildWordmark(w, flowP(1))!;
+      const count = (x: typeof on) => x.paths.reduce((n, d) => n + (d.match(/M/g)?.length ?? 0), 0);
+      expect(count(on)).toBeLessThanOrEqual(count(off));
+    }
+    expect(buildWordmark('고요', flowP(0))!.paths).toEqual(buildWordmark('고요', { ...jamoP, jamo: { ...DEFAULT_JAMO, link: 0, gap: 6 } })!.paths);
+  });
+
+  it('11,172자가 한 획 모드에서도 유한한 좌표로, 합리적인 시간 안에 조립된다', () => {
+    const t0 = Date.now();
+    let bad = 0;
+    for (let cp = 0xac00; cp <= 0xd7a3; cp += 3) {
+      const g = buildJamoGlyph(String.fromCodePoint(cp), { ...DEFAULT_JAMO, link: 1, linkMode: 'flow', gap: 8 }, 0);
+      if (!g || g.cmds.some((c) => c.slice(1).some((n) => !Number.isFinite(n as number)))) bad++;
+    }
+    expect(bad).toBe(0);
+    expect(Date.now() - t0).toBeLessThan(15000);
+  });
+});

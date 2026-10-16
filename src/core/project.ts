@@ -44,7 +44,7 @@ function sanitizeJamo(raw: unknown): JamoParams {
     circleGap: num(r.circleGap, d.circleGap, LIMITS.circleGap),
     bounce: num(r.bounce, d.bounce, LIMITS.bounce),
     link: num(r.link, d.link, LIMITS.link),
-    linkMode: oneOf<LinkMode>(r.linkMode, ['snap', 'bridge', 'curve'], d.linkMode),
+    linkMode: oneOf<LinkMode>(r.linkMode, ['snap', 'bridge', 'curve', 'flow'], d.linkMode),
   };
 }
 
