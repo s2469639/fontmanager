@@ -262,25 +262,27 @@ interface Layout {
 
 /** 모음 종류 × 받침 유무에 따라 초성·중성·종성이 놓일 칸을 정합니다. (설계 좌표 0..100) */
 function layoutFor(kind: VowelKind, hasFinal: boolean, cluster: boolean): Layout {
+  // 부분 사이 간격은 최소 약 8 이상이 되게 잡았습니다. (선 굵기의 1.5배 이상이라 붙어 보이지 않음)
   if (cluster) {
     // 겹받침은 두 자음이 들어가야 해서 받침 칸을 더 넓고 높게 잡고, 위쪽을 조금 줄입니다.
-    if (kind === 'vertical') return { L: [0, 2, 46, 40], V: [58, 0, 100, 50], T: [4, 58, 96, 100] };
-    if (kind === 'horizontal') return { L: [18, 0, 82, 22], V: [0, 29, 100, 50], T: [4, 60, 96, 100] };
-    return { L: [0, 0, 44, 22], V: [0, 0, 100, 52], T: [4, 62, 96, 100] };
+    if (kind === 'vertical') return { L: [0, 2, 46, 40], V: [58, 0, 100, 50], T: [4, 60, 96, 100] };
+    if (kind === 'horizontal') return { L: [18, 0, 82, 18], V: [0, 29, 100, 50], T: [4, 60, 96, 100] };
+    return { L: [0, 0, 40, 18], V: [0, 0, 100, 52], T: [4, 62, 96, 100] };
   }
   if (kind === 'vertical') {
     return hasFinal
-      ? { L: [0, 6, 46, 48], V: [58, 0, 100, 60], T: [8, 68, 92, 100] }
+      ? { L: [0, 6, 46, 48], V: [58, 0, 100, 60], T: [8, 72, 92, 100] }
       : { L: [0, 14, 48, 86], V: [58, 0, 100, 100] };
   }
   if (kind === 'horizontal') {
     return hasFinal
-      ? { L: [18, 0, 82, 30], V: [0, 38, 100, 62], T: [8, 70, 92, 100] }
+      ? { L: [18, 0, 82, 30], V: [0, 38, 100, 62], T: [8, 73, 92, 100] }
       : { L: [14, 0, 86, 50], V: [0, 62, 100, 100] };
   }
+  // 겹모음: 초성은 왼쪽 위에 조금 작게, 모음의 가로 가지와 8 이상 떨어지게
   return hasFinal
-    ? { L: [0, 0, 44, 30], V: [0, 0, 100, 64], T: [8, 72, 92, 100] }
-    : { L: [0, 0, 44, 48], V: [0, 0, 100, 100] };
+    ? { L: [0, 0, 40, 24], V: [0, 0, 100, 64], T: [8, 76, 92, 100] }
+    : { L: [0, 0, 40, 42], V: [0, 0, 100, 100] };
 }
 
 function scaleRect(r: Rect, k: number): Rect {
@@ -352,7 +354,9 @@ function placeConsonant(name: string, rect: Rect, out: PlacedStroke[], pick: Pic
   const pair = PAIRS[name];
   if (pair) {
     const w = rect[2] - rect[0];
-    const gap = w * 0.08;
+    // ㅅ·ㅈ 계열은 붙여 놓으면 'M'자처럼 보여서 두 글자 사이를 더 벌립니다.
+    const wide = 'ㅅㅈㅊ'.includes(pair[0]);
+    const gap = w * (wide ? 0.2 : 0.1);
     const half = (w - gap) / 2;
     placeConsonant(pair[0], [rect[0], rect[1], rect[0] + half, rect[3]], out, pick);
     placeConsonant(pair[1], [rect[2] - half, rect[1], rect[2], rect[3]], out, pick);
@@ -370,7 +374,7 @@ function placeVowel(name: string, rect: Rect, out: PlacedStroke[], pick: Pick) {
     const w = x1 - x0;
     const h = y1 - y0;
     // 가로 모음은 아래쪽, 세로 모음은 오른쪽 전체 높이
-    place(variantStrokes(VOWEL_VARIANTS, horiz, pick)!, [x0, y0 + h * 0.5, x0 + w * (vx + 0.08), y1], out, false);
+    place(variantStrokes(VOWEL_VARIANTS, horiz, pick)!, [x0, y0 + h * 0.56, x0 + w * (vx + 0.08), y1], out, false);
     place(variantStrokes(VOWEL_VARIANTS, vert, pick)!, [x0 + w * vx, y0, x1, y1], out, false);
     return;
   }
