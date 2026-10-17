@@ -1386,3 +1386,95 @@ input[type='range']::-moz-range-thumb {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+/* 사용법 안내(? 버튼, 빨간 점) */
+.helpbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.helpbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 15px;
+}
+.helpbtn:hover,
+.helpbtn.is-on {
+  border-color: var(--accent);
+}
+.helpbtn__q {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: 50%;
+}
+.helpbar__hint {
+  font-size: 12px;
+  color: var(--accent);
+}
+.tip {
+  position: relative;
+}
+.tip__dot {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 2px solid var(--paper-2);
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(255, 59, 29, 0.55);
+  animation: tip-pulse 1.8s infinite;
+}
+.tip__dot.is-open {
+  animation: none;
+  outline: 2px solid var(--ink);
+}
+@keyframes tip-pulse {
+  70% { box-shadow: 0 0 0 9px rgba(255, 59, 29, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 59, 29, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tip__dot { animation: none; }
+}
+.tip__note {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  background: var(--paper-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+}
+.tip__note p {
+  margin: 4px 0 8px;
+}
+.tip__next {
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 0;
+  border-radius: var(--radius);
+}

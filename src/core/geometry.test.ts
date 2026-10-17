@@ -384,6 +384,18 @@ describe('뼈대 직접 그리기', () => {
     expect(forced.paths[1]).not.toEqual(base.paths[1]);
   });
 
+  it('손글씨 흔들림은 0이면 그대로, 켜면 글자 자리마다 다르게 결정적으로 흔들린다', () => {
+    const plain = buildWordmark('가가', jamoP)!;
+    expect(buildWordmark('가가', { ...jamoP, jamo: { ...jamoP.jamo, wobble: 0 } })!.paths).toEqual(plain.paths);
+    const w = { ...jamoP, jamo: { ...jamoP.jamo, wobble: 0.8 } };
+    const a = buildWordmark('가가', w)!;
+    expect(a.paths).toEqual(buildWordmark('가가', w)!.paths);
+    expect(a.paths[0]).not.toEqual(plain.paths[0]);
+    expect(a.paths[0]).not.toEqual(a.paths[1]);
+    const b = buildWordmark('가가', { ...w, jamo: { ...w.jamo, wobbleSeed: 7 } })!;
+    expect(b.paths[0]).not.toEqual(a.paths[0]);
+  });
+
   it('글자별 뼈대는 그 글자에만 적용되고 모든 글자용 뼈대보다 우선한다', () => {
     const shared: Record<string, SkelStroke[]> = {
       ㄱ: [{ t: 'path', nodes: [{ x: 0, y: 0 }, { x: 1, y: 0.4 }, { x: 0.3, y: 1 }] }],

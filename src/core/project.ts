@@ -45,6 +45,8 @@ function sanitizeJamo(raw: unknown): JamoParams {
     oShape: oneOf<OShape>(r.oShape, ['circle', 'square', 'diamond'], d.oShape),
     circleGap: num(r.circleGap, d.circleGap, LIMITS.circleGap),
     bounce: num(r.bounce, d.bounce, LIMITS.bounce),
+    wobble: num(r.wobble, d.wobble, LIMITS.wobble),
+    wobbleSeed: Math.round(num(r.wobbleSeed, d.wobbleSeed, { min: 0, max: 9999 })),
     link: num(r.link, d.link, LIMITS.link),
     linkMode: oneOf<LinkMode>(r.linkMode, ['snap', 'bridge', 'curve', 'flow'], d.linkMode),
     hookStart: num(r.hookStart, d.hookStart, LIMITS.hook),

@@ -11,6 +11,73 @@ const VB = '-14 -14 128 128';
 const MAX_STROKES = 8;
 const MAX_NODES = 32;
 
+/** 사용법 안내: 빨간 점을 누르면 그 부분의 설명이 열립니다. */
+const TIPS: Record<string, { title: string; body: string }> = {
+  scope: {
+    title: '적용 범위',
+    body: "'모든 글자'는 이 자모가 쓰인 모든 글자를 한꺼번에 바꿔요. '선택한 글자만'은 미리보기에서 누른 그 글자 하나만 바꿔서, 같은 ㄱ도 글자마다 다르게 그릴 수 있어요.",
+  },
+  chips: {
+    title: '고칠 자모',
+    body: '고치고 싶은 자음·모음을 고르세요. 오른쪽 위에 작은 빨간 점이 있으면 이미 직접 그린 모양이에요.',
+  },
+  mode: {
+    title: '편집 방식',
+    body: "'점 편집'은 점을 끌어 모양을 다듬어요. '손으로 그리기'는 펜·손가락·마우스로 쓱 그으면 알아서 매끈한 획으로 바뀌고, 그린 뒤엔 점 편집으로 더 고칠 수 있어요.",
+  },
+  canvas: {
+    title: '그리는 칸',
+    body: '네모 칸이 글자 한 자모의 자리예요. 점을 끌어 옮기고, 선 위를 누르면 그 자리에 점이 생겨요. 점을 고른 뒤 방향키로 조금씩 옮길 수도 있어요. 칸 밖으로도 끌어낼 수 있어요.',
+  },
+  snap: {
+    title: '격자 맞추기',
+    body: '켜 두면 점이 격자에 딱딱 붙어 반듯하게 그려져요. 끄거나 Alt를 누르고 끌면 자유롭게 놓을 수 있어요.',
+  },
+  node: {
+    title: '점 다루기',
+    body: "■ 네모 점은 꺾이고 ● 동그란 점은 이웃 점을 따라 부드럽게 휘어요. 점을 고른 뒤 '꺾이게/부드럽게'로 바꾸고, '점 지우기'로 없애고, '선택한 획 지우기'로 획 하나를 없애요.",
+  },
+  add: {
+    title: '획 추가·뒤집기',
+    body: "'선 추가'와 '고리 추가'로 획을 더하고(최대 8개), 좌우·상하 뒤집기로 모양을 거꾸로 돌려요.",
+  },
+  reset: {
+    title: '되돌리기',
+    body: '지금 고른 범위에서 직접 그린 모양을 지우고 기본 모양으로 돌려놓아요. 다른 자모나 다른 글자에는 영향이 없어요.',
+  },
+};
+const TIP_ORDER = ['scope', 'chips', 'mode', 'canvas', 'snap', 'node', 'add', 'reset'];
+
+function Tip({ id, help, open, onOpen, children }: { id: string; help: boolean; open: string | null; onOpen: (id: string | null) => void; children: React.ReactNode }) {
+  const tip = TIPS[id];
+  const isOpen = help && open === id;
+  return (
+    <div className="tip">
+      {help && (
+        <button
+          type="button"
+          className={isOpen ? 'tip__dot is-open' : 'tip__dot'}
+          aria-label={`${tip.title} 설명 ${isOpen ? '닫기' : '보기'}`}
+          aria-expanded={isOpen}
+          onClick={() => onOpen(isOpen ? null : id)}
+        >
+          {TIP_ORDER.indexOf(id) + 1}
+        </button>
+      )}
+      {children}
+      {isOpen && (
+        <div className="tip__note" role="note">
+          <strong>{tip.title}</strong>
+          <p>{tip.body}</p>
+          <button type="button" className="tip__next" onClick={() => onOpen(TIP_ORDER[(TIP_ORDER.indexOf(id) + 1) % TIP_ORDER.length])}>
+            {id === TIP_ORDER[TIP_ORDER.length - 1] ? '처음부터 다시' : '다음 ▸'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 type Sel = { s: number; n: number } | null; // n === -1이면 고리 전체
 
 const clone = (strokes: SkelStroke[]) => JSON.parse(JSON.stringify(strokes)) as SkelStroke[];
@@ -48,6 +115,13 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
   /** 새로 그리기: 다음 선부터 기존 뼈대를 지우고 처음부터 시작 */
   const [fresh, setFresh] = useState(false);
   const [drawNote, setDrawNote] = useState<string | null>(null);
+  const [help, setHelp] = useState(false);
+  const [tipOpen, setTipOpen] = useState<string | null>(null);
+  const T = (id: string, children: React.ReactNode) => (
+    <Tip id={id} help={help} open={tipOpen} onOpen={setTipOpen}>
+      {children}
+    </Tip>
+  );
 
   const custom = ch ? (perGlyph ? own?.[ch] : p.skeletons[ch]) : undefined;
   const strokes = useMemo<SkelStroke[]>(
@@ -55,7 +129,25 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
     [ch, p.variants, p.skeletons, own],
   );
 
-  const scopeToggle = (
+  const helpBar = (
+    <div className="helpbar">
+      <button
+        type="button"
+        className={help ? 'helpbtn is-on' : 'helpbtn'}
+        aria-pressed={help}
+        onClick={() => {
+          setHelp((h) => !h);
+          setTipOpen(help ? null : TIP_ORDER[0]);
+        }}
+      >
+        <span className="helpbtn__q">?</span>
+        {help ? '사용법 닫기' : '사용법 보기'}
+      </button>
+      {help && <span className="helpbar__hint">빨간 점을 눌러 보세요</span>}
+    </div>
+  );
+
+  const scopeToggle = T('scope', 
     <div className="field" style={{ marginBottom: 10 }}>
       <Segmented<'all' | 'glyph'>
         label="적용 범위"
@@ -70,12 +162,13 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
           setSel(null);
         }}
       />
-    </div>
+    </div>,
   );
 
   if (scope === 'glyph' && gidx === null)
     return (
       <>
+        {helpBar}
         {scopeToggle}
         <p className="field__note">미리보기에서 글자를 눌러 고르면, 그 글자의 자모만 따로 그릴 수 있어요.</p>
       </>
@@ -83,6 +176,7 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
   if (!ch)
     return (
       <>
+        {helpBar}
         {scopeToggle}
         <p className="field__note">이 이름에는 직접 그릴 수 있는 자음·모음이 없어요.</p>
       </>
@@ -325,6 +419,7 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
 
   return (
     <>
+      {helpBar}
       <p className="field__note" style={{ marginTop: 0, marginBottom: 10 }}>
         점을 끌어서 모양을 바꿔요. 선 위를 누르면 점이 생겨요.{' '}
         {perGlyph ? (
@@ -334,7 +429,7 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
         )}
       </p>
       {scopeToggle}
-      <div className="glyphchips" role="listbox" aria-label="고칠 자모">
+      {T('chips', <div className="glyphchips" role="listbox" aria-label="고칠 자모">
         {chars.map((c) => (
           <button
             key={c}
@@ -351,9 +446,9 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
             {(perGlyph ? own?.[c] : p.skeletons[c]) && <span className="glyphchip__dot" aria-label="직접 그림" />}
           </button>
         ))}
-      </div>
+      </div>)}
 
-      <div className="field" style={{ marginBottom: 10 }}>
+      {T('mode', <div className="field" style={{ marginBottom: 10 }}>
         <Segmented<'edit' | 'draw'>
           label="뼈대 편집 방식"
           value={mode}
@@ -373,8 +468,8 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
             부드럽게 남고, 처음과 끝이 만나면 고리가 돼요. 그린 뒤에는 ‘점 편집’에서 점을 더 고칠 수 있어요.
           </p>
         )}
-      </div>
-      <div className="skel" onKeyDown={onKey} tabIndex={0} aria-label={`${ch} 뼈대 편집 영역`}>
+      </div>)}
+      {T('canvas', <div className="skel" onKeyDown={onKey} tabIndex={0} aria-label={`${ch} 뼈대 편집 영역`}>
         <svg
           ref={svgRef}
           viewBox={VB}
@@ -484,14 +579,14 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
             ),
           )}
         </svg>
-      </div>
+      </div>)}
 
-      <label className="presetbox__check">
+      {T('snap', <label className="presetbox__check">
         <input type="checkbox" checked={snap} onChange={(e) => setSnap(e.target.checked)} />
         격자에 맞추기 (Alt를 누르고 끌면 잠시 해제)
-      </label>
+      </label>)}
 
-      <div className="artactions" style={{ marginTop: 10 }}>
+      {T('node', <div className="artactions" style={{ marginTop: 10 }}>
         <button type="button" className="btn btn--soft" disabled={!selNode} onClick={toggleSmooth}>
           {selNode?.s ? '꺾이게' : '부드럽게'}
         </button>
@@ -506,8 +601,8 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
         <button type="button" className="btn btn--soft" disabled={!sel || strokes.length <= 1} onClick={deleteStroke}>
           선택한 획 지우기
         </button>
-      </div>
-      <div className="artactions" style={{ marginTop: 6 }}>
+      </div>)}
+      {T('add', <div className="artactions" style={{ marginTop: 6 }}>
         <button type="button" className="btn btn--soft" disabled={strokes.length >= MAX_STROKES} onClick={addLine}>
           선 추가
         </button>
@@ -520,7 +615,7 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
         <button type="button" className="btn btn--soft" onClick={() => flip('y')}>
           상하 뒤집기
         </button>
-      </div>
+      </div>)}
       {mode === 'draw' && (
         <div className="artactions" style={{ marginTop: 6 }}>
           <button
@@ -541,11 +636,11 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
           {drawNote}
         </p>
       )}
-      <div className="artactions" style={{ marginTop: 6 }}>
+      {T('reset', <div className="artactions" style={{ marginTop: 6 }}>
         <button type="button" className="btn btn--ghost" disabled={!custom} onClick={reset}>
           {ch}을(를) 기본 모양으로 되돌리기
         </button>
-      </div>
+      </div>)}
       <p className="field__note" style={{ marginTop: 8 }}>
         ■ 네모 점은 꺾이고, ● 동그란 점은 이웃 점을 따라 부드럽게 휘어요. 점을 고르고 방향키로 조금씩 옮길 수도 있어요.
       </p>

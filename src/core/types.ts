@@ -31,6 +31,10 @@ export interface JamoParams {
   circleGap: number;
   /** 글자마다 위아래로 어긋나는 정도(em) */
   bounce: number;
+  /** 손글씨 흔들림 0..1: 자소마다 기울기·크기·위치가 조금씩, 선마다 점이 조금씩 흔들립니다. */
+  wobble: number;
+  /** 흔들림의 무작위 씨앗(바꾸면 다른 흔들림) */
+  wobbleSeed: number;
   /** 획 연결: 이 거리 안의 인접한 자소를 이어 줍니다. 0이면 끔 (0..1) */
   link: number;
   linkMode: LinkMode;

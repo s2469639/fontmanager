@@ -431,6 +431,21 @@ function JamoControls({ p, setJ, set }: JamoControlsProps) {
         onChange={(v) => setJ({ bounce: v })}
       />
       <Slider
+        label="손글씨 흔들림"
+        value={j.wobble}
+        {...LIMITS.wobble}
+        display={j.wobble <= 0.01 ? '없음' : `${Math.round(j.wobble * 100)}%`}
+        hint="자음·모음마다 기울기·크기·위치가 조금씩 다르고, 선의 점도 살짝 흔들려서 손으로 쓴 느낌이 납니다. 같은 글자도 자리마다 다르게 흔들려요."
+        onChange={(v) => setJ({ wobble: v })}
+      />
+      {j.wobble > 0.01 && (
+        <div className="artactions" style={{ marginBottom: 10 }}>
+          <button type="button" className="btn btn--soft" onClick={() => setJ({ wobbleSeed: (j.wobbleSeed % 9999) + 1 })}>
+            다시 흔들기 ({j.wobbleSeed})
+          </button>
+        </div>
+      )}
+      <Slider
         label="폭"
         value={p.width}
         {...LIMITS.width}

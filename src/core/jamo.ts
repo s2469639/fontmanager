@@ -433,12 +433,62 @@ function adjustStrokes(strokes: PlacedStroke[], rect: Rect, adj?: Partial<PartAd
   });
 }
 
+/** 흔들림용 작은 난수(결정적). 같은 씨앗·글자·자리면 항상 같은 값 */
+function wobbleRng(...keys: number[]) {
+  let h = 2166136261;
+  for (const k of keys) h = Math.imul(h ^ (k | 0), 16777619) >>> 0;
+  let a = h || 1;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296 - 0.5; // -0.5..0.5
+  };
+}
+
+/**
+ * 손글씨처럼 흔듭니다. 한 부분 전체에 기울기·크기·위치 변화를 주고(adjustStrokes 재사용),
+ * 각 점도 조금씩 흔듭니다. amount 1이면 설계 좌표(0..100)에서 점이 최대 약 ±1.8, 기울기 ±5° 정도입니다.
+ */
+function wobbleStrokes(strokes: PlacedStroke[], rect: Rect, amount: number, rnd: () => number): PlacedStroke[] {
+  if (amount <= 0.001) return strokes;
+  const rigid = adjustStrokes(strokes, rect, {
+    rot: rnd() * 10 * amount,
+    scale: 1 + rnd() * 0.12 * amount,
+    dx: rnd() * 3.5 * amount,
+    dy: rnd() * 3.5 * amount,
+  });
+  const j = (): number => rnd() * 3.6 * amount;
+  const jp = ([x, y]: Pt): Pt => [x + j(), y + j()];
+  return rigid.map((s): PlacedStroke => {
+    if (s.t === 'poly') return { ...s, pts: s.pts.map(jp) };
+    if (s.t === 'path') return { ...s, nodes: s.nodes.map((n) => { const [x, y] = jp([n.x, n.y]); return { ...n, x, y }; }) };
+    if (s.t === 'bez') {
+      return {
+        t: 'bez',
+        ops: s.ops.map((o): BezOp => {
+          if (o[0] === 'Z') return o;
+          if (o[0] === 'Q') {
+            const a = jp([o[1], o[2]]);
+            const b = jp([o[3], o[4]]);
+            return ['Q', a[0], a[1], b[0], b[1]];
+          }
+          const a = jp([o[1], o[2]]);
+          return [o[0], a[0], a[1]];
+        }),
+      };
+    }
+    return { ...s, c: jp(s.c), rx: s.rx * (1 + rnd() * 0.16 * amount), ry: s.ry * (1 + rnd() * 0.16 * amount) };
+  });
+}
+
 export function assemble(
   syl: Syllable,
   jp: JamoParams,
   ov?: GlyphOverride,
   variants?: Record<string, number>,
   custom?: Record<string, SkelStroke[]>,
+  index = 0,
 ): Placed {
   const kind = vowelKind(syl.medial);
   const lay = layoutFor(kind, syl.final !== '', CLUSTERS.has(syl.final));
@@ -457,7 +507,8 @@ export function assemble(
   const part = (fn: (r: Rect, out: PlacedStroke[]) => void, rect: Rect, adj?: Partial<PartAdjust>) => {
     const tmp: PlacedStroke[] = [];
     fn(rect, tmp);
-    const adjusted = adjustStrokes(tmp, rect, adj);
+    const adjusted0 = adjustStrokes(tmp, rect, adj);
+    const adjusted = wobbleStrokes(adjusted0, rect, jp.wobble, wobbleRng(jp.wobbleSeed, index, parts.length));
     strokes.push(...adjusted);
     parts.push(adjusted);
   };
@@ -922,7 +973,7 @@ export function buildJamoGlyph(
   custom?: Record<string, SkelStroke[]>,
 ): GlyphShape | null {
   const syl = decompose(ch);
-  const placed = syl ? assemble(syl, jp, ov, variants, custom) : assembleLoose(ch, jp, variants, custom);
+  const placed = syl ? assemble(syl, jp, ov, variants, custom, index) : assembleLoose(ch, jp, variants, custom);
   if (!placed) return null;
   const radius = jp.roundness * 14;
   // 이 글자만 ㅇ 모양·열림이 다를 수 있습니다.
