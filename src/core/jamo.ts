@@ -181,26 +181,32 @@ const VOWELS: Record<string, Stroke[]> = Object.fromEntries(
 
 /**
  * 한 부분을 그릴 때 어떤 뼈대를 쓸지 정하는 규칙.
- * 우선순위: 이 글자에서 직접 고른 모양 > 직접 그린 뼈대 > 자모별 모양 > 기본 모양
+ * 우선순위: 이 글자에서만 직접 그린 뼈대 > 이 글자에서 직접 고른 모양 > 전체에 직접 그린 뼈대 > 자모별 모양 > 기본 모양
  */
 interface Pick {
   get: (ch: string) => number;
-  /** 이 글자에서 모양을 직접 골랐는지 (직접 그린 뼈대보다 우선) */
+  /** 이 글자에서 모양을 직접 골랐는지 (전체에 직접 그린 뼈대보다 우선) */
   forced: boolean;
+  /** 전체(모든 글자)에 적용되는, 직접 그린 뼈대 */
   custom?: Record<string, SkelStroke[]>;
+  /** 이 글자에서만 적용되는, 직접 그린 뼈대 */
+  own?: Record<string, SkelStroke[]>;
 }
 
 const pickOf = (
   fixed: number | undefined,
   map: Record<string, number> | undefined,
   custom?: Record<string, SkelStroke[]>,
-): Pick => ({ get: (ch) => fixed ?? map?.[ch] ?? 0, forced: fixed !== undefined, custom });
+  own?: Record<string, SkelStroke[]>,
+): Pick => ({ get: (ch) => fixed ?? map?.[ch] ?? 0, forced: fixed !== undefined, custom, own });
 
 function variantStrokes(table: Record<string, Variant[]>, ch: string, pick: Pick): Stroke[] | undefined {
   const list = table[ch];
   if (!list) return undefined;
-  const own = pick.custom?.[ch];
-  if (own && own.length && !pick.forced) return own;
+  const mine = pick.own?.[ch];
+  if (mine && mine.length) return mine;
+  const shared = pick.custom?.[ch];
+  if (shared && shared.length && !pick.forced) return shared;
   return list[Math.max(0, Math.min(pick.get(ch), list.length - 1))].strokes;
 }
 
@@ -455,9 +461,9 @@ export function assemble(
     strokes.push(...adjusted);
     parts.push(adjusted);
   };
-  part((r, o) => placeConsonant(syl.initial, r, o, pickOf(ov?.Lv, variants, custom)), L, ov?.L);
-  part((r, o) => placeVowel(syl.medial, r, o, pickOf(ov?.Vv, variants, custom)), V, ov?.V);
-  if (syl.final && lay.T) part((r, o) => placeConsonant(syl.final, r, o, pickOf(ov?.Tv, variants, custom)), lay.T, ov?.T);
+  part((r, o) => placeConsonant(syl.initial, r, o, pickOf(ov?.Lv, variants, custom, ov?.skeletons)), L, ov?.L);
+  part((r, o) => placeVowel(syl.medial, r, o, pickOf(ov?.Vv, variants, custom, ov?.skeletons)), V, ov?.V);
+  if (syl.final && lay.T) part((r, o) => placeConsonant(syl.final, r, o, pickOf(ov?.Tv, variants, custom, ov?.skeletons)), lay.T, ov?.T);
   return { strokes, parts };
 }
 
@@ -1047,7 +1053,9 @@ export function editableStrokes(
   ch: string,
   variantIdx: number,
   custom?: Record<string, SkelStroke[]>,
+  own?: Record<string, SkelStroke[]>,
 ): SkelStroke[] {
+  if (own?.[ch]?.length) return JSON.parse(JSON.stringify(own[ch])) as SkelStroke[];
   if (custom?.[ch]?.length) return JSON.parse(JSON.stringify(custom[ch])) as SkelStroke[];
   const table = ch in CONS_VARIANTS ? CONS_VARIANTS : VOWEL_VARIANTS;
   const strokes = variantStrokes(table, ch, { get: () => variantIdx, forced: true });

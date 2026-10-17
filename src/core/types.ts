@@ -64,6 +64,8 @@ export interface GlyphOverride {
   stroke?: number;
   /** 이 글자의 획 연결 정도 (0이면 이 글자만 끔) */
   link?: number;
+  /** 이 글자에서만 직접 그린 자모 뼈대 (키: 자모). 가장 높은 우선순위 */
+  skeletons?: Record<string, SkelStroke[]>;
   /** 이 글자의 초성/모음/받침 뼈대 모양 번호 (전체 설정보다 우선) */
   Lv?: number;
   Vv?: number;

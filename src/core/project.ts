@@ -103,6 +103,8 @@ function sanitizeGlyphs(raw: unknown): Record<number, GlyphOverride> {
     if (typeof v.circleGap === 'number') g.circleGap = num(v.circleGap, 0, LIMITS.circleGap);
     if (typeof v.stroke === 'number') g.stroke = num(v.stroke, 1, { min: 0.1, max: 8 });
     if (typeof v.link === 'number') g.link = num(v.link, 0, LIMITS.link);
+    const sk = sanitizeSkeletons(v.skeletons);
+    if (Object.keys(sk).length) g.skeletons = sk;
     for (const key of ['Lv', 'Vv', 'Tv'] as const) {
       const n = int(v[key], 0, 9);
       if (n !== undefined) g[key] = n;

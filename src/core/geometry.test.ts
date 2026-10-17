@@ -384,6 +384,22 @@ describe('뼈대 직접 그리기', () => {
     expect(forced.paths[1]).not.toEqual(base.paths[1]);
   });
 
+  it('글자별 뼈대는 그 글자에만 적용되고 모든 글자용 뼈대보다 우선한다', () => {
+    const shared: Record<string, SkelStroke[]> = {
+      ㄱ: [{ t: 'path', nodes: [{ x: 0, y: 0 }, { x: 1, y: 0.4 }, { x: 0.3, y: 1 }] }],
+    };
+    const own: Record<string, SkelStroke[]> = {
+      ㄱ: [{ t: 'path', nodes: [{ x: 0, y: 0.2 }, { x: 1, y: 0.2 }, { x: 1, y: 1 }] }],
+    };
+    const plain = buildWordmark('가가', jamoP)!;
+    const g = buildWordmark('가가', { ...jamoP, glyphs: { 1: { skeletons: own } } })!;
+    expect(g.paths[0]).toEqual(plain.paths[0]);
+    expect(g.paths[1]).not.toEqual(plain.paths[1]);
+    const both = buildWordmark('가가', { ...jamoP, skeletons: shared, glyphs: { 1: { skeletons: own } } })!;
+    expect(both.paths[1]).toEqual(g.paths[1]);
+    expect(both.paths[0]).not.toEqual(plain.paths[0]);
+  });
+
   it('부드러운 점이 있으면 곡선이 만들어지고, 모두 꺾임이면 꺾은선이다', () => {
     const corner = nodesToCmds([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }], false, 0);
     expect(corner.some((c) => c[0] === 'C')).toBe(false);

@@ -90,6 +90,16 @@ describe('작업 파일', () => {
 });
 
 describe('직접 그린 뼈대 저장', () => {
+  it('글자별 뼈대도 저장·복원되고 잘못된 값은 걸러진다', async () => {
+    const sk = { ㄱ: [{ t: 'path' as const, nodes: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }] };
+    const params = { ...DEFAULT_PARAMS, glyphs: { 1: { skeletons: sk } } };
+    const json = await serializeProject({ text: '가가', params, baseline: null, baselineLabel: '', bg: 'light', art: [] }, false);
+    expect(parseProject(json).params.glyphs).toEqual(params.glyphs);
+    const evil = { ...base, params: { glyphs: { 0: { skeletons: { zzz: sk.ㄱ, ㄴ: [{ t: 'evil' }] } } } } };
+    const g = parseProject(JSON.stringify(evil)).params.glyphs[0];
+    expect(g?.skeletons ?? {}).toEqual({});
+  });
+
   it('저장했다가 다시 읽어도 그대로이고, 범위를 벗어난 값은 맞춘다', async () => {
     const params = {
       ...DEFAULT_PARAMS,

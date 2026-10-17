@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
 import type { PointerEvent as RPointerEvent } from 'react';
 import { useStore } from '../state/store';
-import { editableStrokes, jamoCharsIn, skeletonStrokePath } from '../core/jamo';
+import { editableStrokes, isJamoDrawable, jamoCharsIn, skeletonStrokePath } from '../core/jamo';
 import { simplifyFreehand } from '../core/freehand';
 import { Segmented } from './Controls';
-import type { Params, SkelNode, SkelStroke } from '../core/types';
+import type { GlyphOverride, Params, SkelNode, SkelStroke } from '../core/types';
 
 /** 화면 좌표 -14..114 (0..100이 자모가 놓이는 상자, 바깥은 점을 끌어 낼 여유) */
 const VB = '-14 -14 128 128';
@@ -28,7 +28,14 @@ type Drag =
  */
 export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Params>) => void }) {
   const text = useStore((s) => s.text);
-  const chars = jamoCharsIn(text);
+  const selected = useStore((s) => s.selectedGlyph);
+  const [scope, setScope] = useState<'all' | 'glyph'>('all');
+  const glyphChars = Array.from(text).filter(isJamoDrawable);
+  const gidx = selected !== null && selected < glyphChars.length ? selected : null;
+  const perGlyph = scope === 'glyph' && gidx !== null;
+  const ov: GlyphOverride = gidx !== null ? (p.glyphs[gidx] ?? {}) : {};
+  const own = perGlyph ? ov.skeletons : undefined;
+  const chars = jamoCharsIn(scope === 'glyph' ? (gidx !== null ? glyphChars[gidx] : '') : text);
   const [picked, setPicked] = useState<string | null>(null);
   const ch = picked && chars.includes(picked) ? picked : (chars[0] ?? null);
   const [sel, setSel] = useState<Sel>(null);
@@ -42,15 +49,59 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
   const [fresh, setFresh] = useState(false);
   const [drawNote, setDrawNote] = useState<string | null>(null);
 
-  const custom = ch ? p.skeletons[ch] : undefined;
+  const custom = ch ? (perGlyph ? own?.[ch] : p.skeletons[ch]) : undefined;
   const strokes = useMemo<SkelStroke[]>(
-    () => (ch ? editableStrokes(ch, p.variants[ch] ?? 0, p.skeletons) : []),
-    [ch, p.variants, p.skeletons],
+    () => (ch ? editableStrokes(ch, p.variants[ch] ?? 0, p.skeletons, own) : []),
+    [ch, p.variants, p.skeletons, own],
   );
 
-  if (!ch) return <p className="field__note">이 이름에는 직접 그릴 수 있는 자음·모음이 없어요.</p>;
+  const scopeToggle = (
+    <div className="field" style={{ marginBottom: 10 }}>
+      <Segmented<'all' | 'glyph'>
+        label="적용 범위"
+        value={scope}
+        options={[
+          { value: 'all', label: '모든 글자' },
+          { value: 'glyph', label: '선택한 글자만' },
+        ]}
+        onChange={(v) => {
+          setScope(v);
+          setPicked(null);
+          setSel(null);
+        }}
+      />
+    </div>
+  );
 
-  const commit = (next: SkelStroke[]) => set({ skeletons: { ...p.skeletons, [ch]: next } });
+  if (scope === 'glyph' && gidx === null)
+    return (
+      <>
+        {scopeToggle}
+        <p className="field__note">미리보기에서 글자를 눌러 고르면, 그 글자의 자모만 따로 그릴 수 있어요.</p>
+      </>
+    );
+  if (!ch)
+    return (
+      <>
+        {scopeToggle}
+        <p className="field__note">이 이름에는 직접 그릴 수 있는 자음·모음이 없어요.</p>
+      </>
+    );
+
+  const writeGlyph = (skeletons: Record<string, SkelStroke[]>) => {
+    if (gidx === null) return;
+    const next: GlyphOverride = { ...ov, skeletons };
+    if (Object.keys(skeletons).length === 0) delete next.skeletons;
+    const glyphs = { ...p.glyphs };
+    if (Object.keys(next).length === 0) delete glyphs[gidx];
+    else glyphs[gidx] = next;
+    set({ glyphs });
+  };
+
+  const commit = (next: SkelStroke[]) => {
+    if (perGlyph) writeGlyph({ ...ov.skeletons, [ch]: next });
+    else set({ skeletons: { ...p.skeletons, [ch]: next } });
+  };
 
   /** 포인터 위치를 0..1 상자 좌표로 */
   const toBox = (e: { clientX: number; clientY: number; altKey?: boolean }) => {
@@ -239,6 +290,13 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
   };
 
   const reset = () => {
+    if (perGlyph) {
+      const sk = { ...ov.skeletons };
+      delete sk[ch];
+      writeGlyph(sk);
+      setSel(null);
+      return;
+    }
     const skeletons = { ...p.skeletons };
     delete skeletons[ch];
     set({ skeletons });
@@ -268,8 +326,14 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
   return (
     <>
       <p className="field__note" style={{ marginTop: 0, marginBottom: 10 }}>
-        점을 끌어서 모양을 바꿔요. 선 위를 누르면 점이 생겨요. 바꾼 모양은 이 자모가 들어간 <strong>모든 글자</strong>에 적용돼요.
+        점을 끌어서 모양을 바꿔요. 선 위를 누르면 점이 생겨요.{' '}
+        {perGlyph ? (
+          <>바꾼 모양은 지금 고른 <strong>이 글자({glyphChars[gidx!]})에만</strong> 적용돼요.</>
+        ) : (
+          <>바꾼 모양은 이 자모가 들어간 <strong>모든 글자</strong>에 적용돼요.</>
+        )}
       </p>
+      {scopeToggle}
       <div className="glyphchips" role="listbox" aria-label="고칠 자모">
         {chars.map((c) => (
           <button
@@ -284,7 +348,7 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
             }}
           >
             {c}
-            {p.skeletons[c] && <span className="glyphchip__dot" aria-label="직접 그림" />}
+            {(perGlyph ? own?.[c] : p.skeletons[c]) && <span className="glyphchip__dot" aria-label="직접 그림" />}
           </button>
         ))}
       </div>
