@@ -66,6 +66,7 @@ function fillParams(p?: Partial<Params>): Params {
     glyphs: { ...(p?.glyphs ?? {}) },
     variants: { ...(p?.variants ?? {}) },
     fx: { ...DEFAULT_FX, ...(p?.fx ?? {}) },
+    skeletons: { ...(p?.skeletons ?? {}) },
   };
 }
 

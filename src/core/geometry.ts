@@ -183,7 +183,7 @@ export function buildWordmark(text: string, p: Params): Wordmark | null {
     if (jamo && ch !== ' ') {
       // 자소 조립 모드는 한글만 그립니다. 그 밖의 글자는 그리지 않고 알립니다.
       const ov = p.glyphs[drawn];
-      const g = buildJamoGlyph(ch, p.jamo, drawn, ov, p.variants);
+      const g = buildJamoGlyph(ch, p.jamo, drawn, ov, p.variants, p.skeletons);
       if (!g) {
         if (!missingChars.includes(ch)) missingChars.push(ch);
         continue;

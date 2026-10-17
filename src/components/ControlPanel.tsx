@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../state/store';
 import { isJamoDrawable, partsOf, partVariantChar, previewPath, selectableJamoIn, variantNames } from '../core/jamo';
+import { SkeletonEditor } from './SkeletonEditor';
 import { LIMITS } from '../core/defaults';
 import { FONTS, getFont } from '../data/fonts';
 import { axisValue } from '../core/fontStore';
@@ -135,6 +136,13 @@ export function ControlPanel() {
         <section className="panel__section">
           <h2 className="panel__title">자소 모양 (전체 적용)</h2>
           <ShapePicker p={p} set={set} />
+        </section>
+      )}
+
+      {jamo && (
+        <section className="panel__section">
+          <h2 className="panel__title">뼈대 직접 그리기</h2>
+          <SkeletonEditor p={p} set={set} />
         </section>
       )}
 
@@ -622,7 +630,10 @@ function ShapePicker({ p, set }: { p: Params; set: (patch: Partial<Params>) => v
     const variants = { ...p.variants };
     if (i === 0) delete variants[c];
     else variants[c] = i;
-    set({ variants });
+    // 기본 모양을 고르면 직접 그린 뼈대는 쓰지 않습니다.
+    const skeletons = { ...p.skeletons };
+    delete skeletons[c];
+    set({ variants, skeletons });
   };
   return (
     <>
@@ -634,8 +645,20 @@ function ShapePicker({ p, set }: { p: Params; set: (patch: Partial<Params>) => v
           <span className="shaperow__ch">{c}</span>
           <div className="shaperow__opts" role="radiogroup" aria-label={`${c} 모양`}>
             {variantNames(c).map((name, i) => (
-              <VariantChip key={name} ch={c} idx={i} label={name} on={(p.variants[c] ?? 0) === i} onClick={() => choose(c, i)} />
+              <VariantChip
+                key={name}
+                ch={c}
+                idx={i}
+                label={name}
+                on={!p.skeletons[c] && (p.variants[c] ?? 0) === i}
+                onClick={() => choose(c, i)}
+              />
             ))}
+            {p.skeletons[c] && (
+              <span className="variantchip variantchip--text is-on" aria-label={`${c} 직접 그린 모양 사용 중`}>
+                <span>직접 그림</span>
+              </span>
+            )}
           </div>
         </div>
       ))}

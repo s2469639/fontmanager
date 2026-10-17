@@ -58,6 +58,18 @@ export interface GlyphOverride {
   Tv?: number;
 }
 
+/** 뼈대 편집기에서 직접 그린 점. s가 true면 이웃 점과 부드럽게 이어지고, 아니면 꺾입니다. */
+export interface SkelNode {
+  x: number;
+  y: number;
+  s?: boolean;
+}
+
+/** 직접 그린 자모 뼈대의 획 하나. 좌표는 0..1 상자 안(y는 아래로)입니다. */
+export type SkelStroke =
+  | { t: 'path'; nodes: SkelNode[]; closed?: boolean }
+  | { t: 'ring'; c: [number, number]; r: number };
+
 export type WaveAxis = 'y' | 'x' | 'both';
 export type BulgeScope = 'glyph' | 'word';
 
@@ -99,6 +111,8 @@ export interface Params {
   /** 자소 조립 모드에서 글자별로 바꾼 값. 키는 그려진 글자의 순서(0부터) */
   glyphs: Record<number, GlyphOverride>;
   fx: FxParams;
+  /** 직접 그린 자모 뼈대. 있으면 그 자모는 이 모양을 씁니다. (글자별로 모양을 따로 고른 경우만 제외) */
+  skeletons: Record<string, SkelStroke[]>;
   /** 자모별 뼈대 모양 번호 (예: ㄱ → 2). 지정하지 않으면 0번 */
   variants: Record<string, number>;
   fontId: string;

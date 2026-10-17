@@ -9,7 +9,7 @@ import { analyzeText } from './text';
 import { FONTS } from '../data/fonts';
 import { ArtError, MAX_ART_LAYERS, readArtFile } from './art';
 import type { ArtLayer } from './art';
-import type { Cap, Corner, Engine, FxParams, GlyphOverride, JamoParams, LinkMode, OShape, Params, PartAdjust } from './types';
+import type { Cap, Corner, Engine, FxParams, GlyphOverride, JamoParams, LinkMode, OShape, Params, PartAdjust, SkelNode, SkelStroke } from './types';
 
 export const APP_ID = 'hangul-form-lab';
 export const PROJECT_VERSION = 1;
@@ -116,6 +116,34 @@ function sanitizeVariants(raw: unknown): Record<string, number> {
   return out;
 }
 
+const MAX_SKEL_STROKES = 8;
+const MAX_SKEL_NODES = 32;
+const coord = (v: unknown, def: number) => num(v, def, { min: -0.6, max: 1.6 });
+
+function sanitizeSkeletons(raw: unknown): Record<string, SkelStroke[]> {
+  const out: Record<string, SkelStroke[]> = {};
+  if (!isObj(raw)) return out;
+  for (const [ch, list] of Object.entries(raw)) {
+    if (!/^[\u3131-\u318E]$/.test(ch) || !Array.isArray(list)) continue;
+    const strokes: SkelStroke[] = [];
+    for (const st of list.slice(0, MAX_SKEL_STROKES)) {
+      if (!isObj(st)) continue;
+      if (st.t === 'ring' && Array.isArray(st.c) && st.c.length === 2) {
+        strokes.push({ t: 'ring', c: [coord(st.c[0], 0.5), coord(st.c[1], 0.5)], r: num(st.r, 0.25, { min: 0.02, max: 0.9 }) });
+      } else if (st.t === 'path' && Array.isArray(st.nodes)) {
+        const nodes: SkelNode[] = [];
+        for (const n of st.nodes.slice(0, MAX_SKEL_NODES)) {
+          if (!isObj(n)) continue;
+          nodes.push({ x: coord(n.x, 0.5), y: coord(n.y, 0.5), ...(n.s === true ? { s: true } : {}) });
+        }
+        if (nodes.length >= 2) strokes.push({ t: 'path', nodes, ...(st.closed === true ? { closed: true } : {}) });
+      }
+    }
+    if (strokes.length) out[ch] = strokes;
+  }
+  return out;
+}
+
 const COLOR = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 /** 어떤 값이 들어와도 항상 유효한 Params를 돌려줍니다. */
@@ -128,6 +156,7 @@ export function sanitizeParams(raw: unknown): Params {
     glyphs: sanitizeGlyphs(r.glyphs),
     fx: sanitizeFx(r.fx),
     variants: sanitizeVariants(r.variants),
+    skeletons: sanitizeSkeletons(r.skeletons),
     fontId: FONTS.some((f) => f.id === r.fontId) ? (r.fontId as string) : d.fontId,
     weight: num(r.weight, d.weight, LIMITS.weight),
     width: num(r.width, d.width, LIMITS.width),

@@ -88,3 +88,37 @@ describe('작업 파일', () => {
     expect(sanitizeParams(42)).toEqual(DEFAULT_PARAMS);
   });
 });
+
+describe('직접 그린 뼈대 저장', () => {
+  it('저장했다가 다시 읽어도 그대로이고, 범위를 벗어난 값은 맞춘다', async () => {
+    const params = {
+      ...DEFAULT_PARAMS,
+      skeletons: {
+        ㄱ: [
+          { t: 'path' as const, nodes: [{ x: 0, y: 0 }, { x: 1, y: 0.2, s: true as const }, { x: 0.4, y: 1 }] },
+          { t: 'ring' as const, c: [0.5, 0.5] as [number, number], r: 0.2 },
+        ],
+      },
+    };
+    const json = await serializeProject({ text: '가', params, baseline: null, baselineLabel: '', bg: 'light', art: [] }, false);
+    expect(parseProject(json).params.skeletons).toEqual(params.skeletons);
+
+    const evil = {
+      ...base,
+      params: {
+        skeletons: {
+          ㄱ: [{ t: 'path', nodes: [{ x: 99, y: -99 }, { x: 'a', y: 0.5 }] }, { t: 'ring', c: [0, 0], r: 99 }, { t: 'evil' }],
+          abc: [{ t: 'ring', c: [0, 0], r: 0.2 }],
+          ㄴ: [{ t: 'path', nodes: [{ x: 0, y: 0 }] }],
+        },
+      },
+    };
+    const sk = parseProject(JSON.stringify(evil)).params.skeletons;
+    expect(Object.keys(sk)).toEqual(['ㄱ']);
+    expect(sk['ㄱ']).toHaveLength(2);
+    const first = sk['ㄱ'][0];
+    expect(first.t === 'path' && first.nodes[0]).toEqual({ x: 1.6, y: -0.6 });
+    const ring = sk['ㄱ'][1];
+    expect(ring.t === 'ring' && ring.r).toBe(0.9);
+  });
+});

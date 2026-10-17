@@ -8,7 +8,7 @@
  * 한계: 뼈대는 이 프로젝트에서 직접 단순하게 정의한 것이라 디자이너가 다듬은 글자체가 아닙니다.
  * 규칙으로 11,172자를 모두 조립하지만, 받침·겹모음·쌍자음 일부 조합은 어색할 수 있습니다.
  */
-import type { Cmd, GlyphOverride, GlyphShape, JamoParams, PartAdjust } from './types';
+import type { Cmd, GlyphOverride, GlyphShape, JamoParams, PartAdjust, SkelNode, SkelStroke } from './types';
 import { flowMerge } from './flow';
 
 type Pt = [number, number];
@@ -17,7 +17,8 @@ type Rect = [number, number, number, number]; // x0, y0, x1, y1 (설계 좌표 0
 type Stroke =
   | { t: 'poly'; pts: Pt[]; closed?: boolean }
   | { t: 'ring'; c: Pt; r: number }
-  | { t: 'bez'; ops: BezOp[] };
+  | { t: 'bez'; ops: BezOp[] }
+  | { t: 'path'; nodes: SkelNode[]; closed?: boolean };
 
 // ───────────────────────── 자모 표 ─────────────────────────
 
@@ -176,14 +177,29 @@ const VOWELS: Record<string, Stroke[]> = Object.fromEntries(
   Object.entries(VOWEL_VARIANTS).map(([k, list]) => [k, list[0].strokes]),
 );
 
-type Pick = (ch: string) => number;
-const pickOf = (fixed: number | undefined, map: Record<string, number> | undefined): Pick => (ch) =>
-  fixed ?? map?.[ch] ?? 0;
+/**
+ * 한 부분을 그릴 때 어떤 뼈대를 쓸지 정하는 규칙.
+ * 우선순위: 이 글자에서 직접 고른 모양 > 직접 그린 뼈대 > 자모별 모양 > 기본 모양
+ */
+interface Pick {
+  get: (ch: string) => number;
+  /** 이 글자에서 모양을 직접 골랐는지 (직접 그린 뼈대보다 우선) */
+  forced: boolean;
+  custom?: Record<string, SkelStroke[]>;
+}
 
-function variantStrokes(table: Record<string, Variant[]>, ch: string, idx: number): Stroke[] | undefined {
+const pickOf = (
+  fixed: number | undefined,
+  map: Record<string, number> | undefined,
+  custom?: Record<string, SkelStroke[]>,
+): Pick => ({ get: (ch) => fixed ?? map?.[ch] ?? 0, forced: fixed !== undefined, custom });
+
+function variantStrokes(table: Record<string, Variant[]>, ch: string, pick: Pick): Stroke[] | undefined {
   const list = table[ch];
   if (!list) return undefined;
-  return list[Math.max(0, Math.min(idx, list.length - 1))].strokes;
+  const own = pick.custom?.[ch];
+  if (own && own.length && !pick.forced) return own;
+  return list[Math.max(0, Math.min(pick.get(ch), list.length - 1))].strokes;
 }
 
 /** UI용: 이 자모에 고를 수 있는 뼈대 모양의 이름 목록 (모양이 하나뿐이면 빈 배열) */
@@ -286,6 +302,7 @@ interface Placed {
 }
 type PlacedStroke =
   | { t: 'poly'; pts: Pt[]; closed: boolean }
+  | { t: 'path'; nodes: SkelNode[]; closed: boolean }
   | { t: 'bez'; ops: BezOp[] }
   | { t: 'ring'; c: Pt; rx: number; ry: number; rot: number };
 
@@ -299,6 +316,12 @@ function place(strokes: Stroke[], rect: Rect, out: PlacedStroke[], oAspect: bool
         t: 'poly',
         closed: !!s.closed,
         pts: s.pts.map(([nx, ny]) => [x0 + nx * w, y0 + ny * h] as Pt),
+      });
+    } else if (s.t === 'path') {
+      out.push({
+        t: 'path',
+        closed: !!s.closed,
+        nodes: s.nodes.map((n) => ({ x: x0 + n.x * w, y: y0 + n.y * h, ...(n.s ? { s: true } : {}) })),
       });
     } else if (s.t === 'bez') {
       const mx = (nx: number) => x0 + nx * w;
@@ -333,7 +356,7 @@ function placeConsonant(name: string, rect: Rect, out: PlacedStroke[], pick: Pic
     placeConsonant(pair[1], [rect[2] - half, rect[1], rect[2], rect[3]], out, pick);
     return;
   }
-  const strokes = variantStrokes(CONS_VARIANTS, name, pick(name));
+  const strokes = variantStrokes(CONS_VARIANTS, name, pick);
   if (strokes) place(strokes, rect, out, true);
 }
 
@@ -345,11 +368,11 @@ function placeVowel(name: string, rect: Rect, out: PlacedStroke[], pick: Pick) {
     const w = x1 - x0;
     const h = y1 - y0;
     // 가로 모음은 아래쪽, 세로 모음은 오른쪽 전체 높이
-    place(variantStrokes(VOWEL_VARIANTS, horiz, pick(horiz))!, [x0, y0 + h * 0.5, x0 + w * (vx + 0.08), y1], out, false);
-    place(variantStrokes(VOWEL_VARIANTS, vert, pick(vert))!, [x0 + w * vx, y0, x1, y1], out, false);
+    place(variantStrokes(VOWEL_VARIANTS, horiz, pick)!, [x0, y0 + h * 0.5, x0 + w * (vx + 0.08), y1], out, false);
+    place(variantStrokes(VOWEL_VARIANTS, vert, pick)!, [x0 + w * vx, y0, x1, y1], out, false);
     return;
   }
-  const strokes = variantStrokes(VOWEL_VARIANTS, name, pick(name));
+  const strokes = variantStrokes(VOWEL_VARIANTS, name, pick);
   if (strokes) place(strokes, rect, out, false);
 }
 
@@ -373,6 +396,9 @@ function adjustStrokes(strokes: PlacedStroke[], rect: Rect, adj?: Partial<PartAd
   };
   return strokes.map((s): PlacedStroke => {
     if (s.t === 'poly') return { ...s, pts: s.pts.map(tp) };
+    if (s.t === 'path') {
+      return { ...s, nodes: s.nodes.map((n) => { const [x, y] = tp([n.x, n.y]); return { ...n, x, y }; }) };
+    }
     if (s.t === 'bez') {
       return {
         t: 'bez',
@@ -397,6 +423,7 @@ export function assemble(
   jp: JamoParams,
   ov?: GlyphOverride,
   variants?: Record<string, number>,
+  custom?: Record<string, SkelStroke[]>,
 ): Placed {
   const kind = vowelKind(syl.medial);
   const lay = layoutFor(kind, syl.final !== '', CLUSTERS.has(syl.final));
@@ -419,9 +446,9 @@ export function assemble(
     strokes.push(...adjusted);
     parts.push(adjusted);
   };
-  part((r, o) => placeConsonant(syl.initial, r, o, pickOf(ov?.Lv, variants)), L, ov?.L);
-  part((r, o) => placeVowel(syl.medial, r, o, pickOf(ov?.Vv, variants)), V, ov?.V);
-  if (syl.final && lay.T) part((r, o) => placeConsonant(syl.final, r, o, pickOf(ov?.Tv, variants)), lay.T, ov?.T);
+  part((r, o) => placeConsonant(syl.initial, r, o, pickOf(ov?.Lv, variants, custom)), L, ov?.L);
+  part((r, o) => placeVowel(syl.medial, r, o, pickOf(ov?.Vv, variants, custom)), V, ov?.V);
+  if (syl.final && lay.T) part((r, o) => placeConsonant(syl.final, r, o, pickOf(ov?.Tv, variants, custom)), lay.T, ov?.T);
   return { strokes, parts };
 }
 
@@ -439,9 +466,14 @@ export function partsOf(ch: string): { L?: string; V?: string; T?: string; hasRi
 }
 
 /** 한글 낱자(ㄱ, ㅏ 등)만 입력했을 때의 조립 */
-function assembleLoose(ch: string, jp: JamoParams, variants?: Record<string, number>): Placed | null {
+function assembleLoose(
+  ch: string,
+  jp: JamoParams,
+  variants?: Record<string, number>,
+  custom?: Record<string, SkelStroke[]>,
+): Placed | null {
   const strokes: PlacedStroke[] = [];
-  const pick = pickOf(undefined, variants);
+  const pick = pickOf(undefined, variants, custom);
   if (ch in CONSONANTS || ch in PAIRS) {
     placeConsonant(ch, scaleRect([20, 20, 80, 80], jp.consonantScale), strokes, pick);
     return { strokes, parts: [strokes] };
@@ -814,8 +846,39 @@ function linkParts(parts: Cmd[][], reach: number, mode: JamoParams['linkMode']):
   return bridges;
 }
 
+/**
+ * 직접 그린 점들을 경로로 바꿉니다. 점이 모두 '꺾임'이면 일반 꺾은선(꺾임 둥글기 적용),
+ * 하나라도 '부드러움'이면 이웃 점을 따라 부드럽게 휘는 곡선(Catmull-Rom)으로 만듭니다.
+ */
+export function nodesToCmds(nodes: SkelNode[], closed: boolean, radius: number): Cmd[] {
+  const n = nodes.length;
+  if (n < 2) return [];
+  if (!nodes.some((nd) => nd.s)) return roundedPoly(nodes.map((nd) => [nd.x, nd.y] as Pt), closed, radius);
+  const P = (i: number): Pt => {
+    const j = closed ? ((i % n) + n) % n : Math.max(0, Math.min(n - 1, i));
+    return [nodes[j].x, nodes[j].y];
+  };
+  const cmds: Cmd[] = [['M', nodes[0].x, nodes[0].y]];
+  const segs = closed ? n : n - 1;
+  for (let i = 0; i < segs; i++) {
+    const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
+    const a = nodes[i % n];
+    const b = nodes[(i + 1) % n];
+    if (!a.s && !b.s) {
+      cmds.push(['L', p2[0], p2[1]]);
+    } else {
+      const c1: Pt = a.s ? [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6] : p1;
+      const c2: Pt = b.s ? [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6] : p2;
+      cmds.push(['C', c1[0], c1[1], c2[0], c2[1], p2[0], p2[1]]);
+    }
+  }
+  if (closed) cmds.push(['Z']);
+  return cmds;
+}
+
 function strokeCmds(s: PlacedStroke, radius: number, local: JamoParams): Cmd[] {
   if (s.t === 'poly') return roundedPoly(s.pts, s.closed, radius);
+  if (s.t === 'path') return nodesToCmds(s.nodes, s.closed, radius);
   if (s.t === 'bez') return s.ops as Cmd[];
   return ringCmds(s.c, s.rx, s.ry, s.rot, local, Math.min(radius, Math.min(s.rx, s.ry) * 0.9));
 }
@@ -826,9 +889,10 @@ export function buildJamoGlyph(
   index: number,
   ov?: GlyphOverride,
   variants?: Record<string, number>,
+  custom?: Record<string, SkelStroke[]>,
 ): GlyphShape | null {
   const syl = decompose(ch);
-  const placed = syl ? assemble(syl, jp, ov, variants) : assembleLoose(ch, jp, variants);
+  const placed = syl ? assemble(syl, jp, ov, variants, custom) : assembleLoose(ch, jp, variants, custom);
   if (!placed) return null;
   const radius = jp.roundness * 14;
   // 이 글자만 ㅇ 모양·열림이 다를 수 있습니다.
@@ -846,7 +910,7 @@ export function buildJamoGlyph(
 /** UI 미리보기: 한 자모의 한 가지 모양을 0..100 상자의 SVG 경로 문자열로 만듭니다. */
 export function previewPath(ch: string, idx: number): string {
   const strokes: PlacedStroke[] = [];
-  const pick: Pick = () => idx;
+  const pick: Pick = { get: () => idx, forced: true };
   const rect: Rect = [16, 16, 84, 84];
   if (ch in CONS_VARIANTS) placeConsonant(ch, rect, strokes, pick);
   else placeVowel(ch, rect, strokes, pick);
@@ -854,6 +918,7 @@ export function previewPath(ch: string, idx: number): string {
   const cmds: Cmd[] = [];
   for (const s of strokes) {
     if (s.t === 'poly') cmds.push(...roundedPoly(s.pts, s.closed, 0));
+    else if (s.t === 'path') cmds.push(...nodesToCmds(s.nodes, s.closed, 0));
     else if (s.t === 'bez') cmds.push(...(s.ops as Cmd[]));
     else cmds.push(...ringCmds(s.c, s.rx, s.ry, s.rot, jp, 0));
   }
@@ -868,4 +933,102 @@ export function partVariantChar(part: string): string | undefined {
   const comp = COMPOUND[part];
   const cands = comp ? [comp[0], comp[1]] : PAIRS[part] ? [...PAIRS[part]] : [part];
   return cands.find((c) => variantNames(c).length > 0);
+}
+
+// ───────────────────────── 뼈대 편집기용 ─────────────────────────
+
+/** 직접 그릴 수 있는 자모인지 (기본 자음·모음) */
+export function isEditableJamo(ch: string): boolean {
+  return ch in CONS_VARIANTS || ch in VOWEL_VARIANTS;
+}
+
+/** 텍스트에 쓰인 기본 자음·모음 (쌍자음·겹받침·겹모음은 기본 자모로 풀어서, 등장 순서·중복 없음) */
+export function jamoCharsIn(text: string): string[] {
+  const out: string[] = [];
+  const add = (c: string) => {
+    if (isEditableJamo(c) && !out.includes(c)) out.push(c);
+  };
+  const addConsonant = (c: string) => (PAIRS[c] ? PAIRS[c].forEach(add) : add(c));
+  for (const ch of Array.from(text)) {
+    const syl = decompose(ch);
+    if (syl) {
+      addConsonant(syl.initial);
+      const comp = COMPOUND[syl.medial];
+      if (comp) {
+        add(comp[0]);
+        add(comp[1]);
+      } else add(syl.medial);
+      if (syl.final) addConsonant(syl.final);
+    } else if (ch in CONS_VARIANTS || ch in PAIRS) addConsonant(ch);
+    else if (ch in VOWEL_VARIANTS) add(ch);
+  }
+  return out;
+}
+
+/** 뼈대 하나를 편집할 수 있는 점 목록으로 바꿉니다. (곡선은 부드러운 점으로 근사) */
+function toEditable(strokes: Stroke[]): SkelStroke[] {
+  const out: SkelStroke[] = [];
+  for (const s of strokes) {
+    if (s.t === 'ring') out.push({ t: 'ring', c: [s.c[0], s.c[1]], r: s.r });
+    else if (s.t === 'path') out.push({ t: 'path', nodes: s.nodes.map((n) => ({ ...n })), ...(s.closed ? { closed: true } : {}) });
+    else if (s.t === 'poly') {
+      out.push({ t: 'path', nodes: s.pts.map(([x, y]) => ({ x, y })), ...(s.closed ? { closed: true } : {}) });
+    } else {
+      // bez: M / L / Q / Z → 점들. Q는 곡선 위 가운데 점을 부드러운 점으로 추가합니다.
+      let nodes: SkelNode[] = [];
+      let closed = false;
+      let cur: Pt = [0, 0];
+      const flush = () => {
+        if (nodes.length >= 2) out.push({ t: 'path', nodes, ...(closed ? { closed: true } : {}) });
+        nodes = [];
+        closed = false;
+      };
+      s.ops.forEach((o, i) => {
+        if (o[0] === 'M') {
+          flush();
+          cur = [o[1], o[2]];
+          nodes.push({ x: cur[0], y: cur[1] });
+        } else if (o[0] === 'L') {
+          cur = [o[1], o[2]];
+          nodes.push({ x: cur[0], y: cur[1] });
+        } else if (o[0] === 'Q') {
+          const mid: Pt = [0.25 * cur[0] + 0.5 * o[1] + 0.25 * o[3], 0.25 * cur[1] + 0.5 * o[2] + 0.25 * o[4]];
+          nodes.push({ x: mid[0], y: mid[1], s: true });
+          const nextIsQ = s.ops[i + 1]?.[0] === 'Q';
+          nodes.push({ x: o[3], y: o[4], ...(nextIsQ ? { s: true } : {}) });
+          cur = [o[3], o[4]];
+        } else {
+          closed = true;
+        }
+      });
+      flush();
+    }
+  }
+  return out;
+}
+
+/** 편집을 시작할 때 보여 줄 뼈대: 직접 그린 것이 있으면 그것, 없으면 선택된 기본 모양 */
+export function editableStrokes(
+  ch: string,
+  variantIdx: number,
+  custom?: Record<string, SkelStroke[]>,
+): SkelStroke[] {
+  if (custom?.[ch]?.length) return JSON.parse(JSON.stringify(custom[ch])) as SkelStroke[];
+  const table = ch in CONS_VARIANTS ? CONS_VARIANTS : VOWEL_VARIANTS;
+  const strokes = variantStrokes(table, ch, { get: () => variantIdx, forced: true });
+  return strokes ? toEditable(strokes) : [];
+}
+
+/** 편집기에서 보여 줄 한 획의 SVG 경로 (설계 좌표 0..100) */
+export function skeletonStrokePath(s: SkelStroke): string {
+  const f = (n: number) => Math.round(n * 100) / 100;
+  const cmds: Cmd[] =
+    s.t === 'ring'
+      ? [...ringCmds([s.c[0] * 100, s.c[1] * 100], s.r * 100, s.r * 100, 0, { circleGap: 0, oShape: 'circle' } as JamoParams, 0)]
+      : nodesToCmds(
+          s.nodes.map((n) => ({ ...n, x: n.x * 100, y: n.y * 100 })),
+          !!s.closed,
+          0,
+        );
+  return cmds.map((c) => (c[0] === 'Z' ? 'Z' : c[0] + c.slice(1).map((n) => f(n as number)).join(' '))).join('');
 }

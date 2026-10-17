@@ -329,3 +329,86 @@ describe('한 획으로 이어 그리기', () => {
     expect(Date.now() - t0).toBeLessThan(15000);
   });
 });
+
+import { editableStrokes, jamoCharsIn, nodesToCmds, skeletonStrokePath } from './jamo';
+import type { SkelStroke } from './types';
+
+describe('뼈대 직접 그리기', () => {
+  const jamoP = { ...DEFAULT_PARAMS, engine: 'jamo' as const };
+
+  it('기본 모양을 편집할 수 있는 점으로 바꾼다 (직각 ㄱ은 꺾이는 점 3개)', () => {
+    const st = editableStrokes('ㄱ', 0);
+    expect(st).toHaveLength(1);
+    expect(st[0].t).toBe('path');
+    if (st[0].t === 'path') {
+      expect(st[0].nodes).toHaveLength(3);
+      expect(st[0].nodes.every((n) => !n.s)).toBe(true);
+    }
+  });
+
+  it('곡선 모양은 부드러운 점으로 바뀌고, ㅇ은 고리로 남는다', () => {
+    const curve = editableStrokes('ㄱ', 2)[0];
+    expect(curve.t === 'path' && curve.nodes.some((n) => n.s)).toBe(true);
+    expect(editableStrokes('ㅇ', 0)[0].t).toBe('ring');
+  });
+
+  it('모든 자모의 모든 기본 모양을 편집용으로 바꿔도 점이 유한하다', () => {
+    for (const ch of 'ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎㅏㅐㅑㅒㅓㅔㅕㅖㅣㅗㅛㅜㅠㅡ') {
+      for (let i = 0; i < 4; i++) {
+        const strokes = editableStrokes(ch, i);
+        expect(strokes.length).toBeGreaterThan(0);
+        for (const s of strokes) expect(skeletonStrokePath(s)).not.toMatch(/NaN|Infinity/);
+      }
+    }
+  });
+
+  it('직접 그린 뼈대는 그 자모가 쓰인 글자에만 적용된다', () => {
+    const custom: Record<string, SkelStroke[]> = {
+      ㄱ: [{ t: 'path', nodes: [{ x: 0, y: 0 }, { x: 1, y: 0.4 }, { x: 0.3, y: 1 }] }],
+    };
+    const a = buildWordmark('가나', jamoP)!;
+    const b = buildWordmark('가나', { ...jamoP, skeletons: custom })!;
+    expect(b.paths[0]).not.toEqual(a.paths[0]);
+    expect(b.paths[1]).toEqual(a.paths[1]);
+  });
+
+  it('직접 그린 뼈대는 자모별 모양 선택보다 우선하지만, 글자별로 고른 모양에는 양보한다', () => {
+    const custom: Record<string, SkelStroke[]> = {
+      ㄱ: [{ t: 'path', nodes: [{ x: 0, y: 0 }, { x: 1, y: 0.4 }, { x: 0.3, y: 1 }] }],
+    };
+    const base = buildWordmark('가가', { ...jamoP, skeletons: custom })!;
+    const withVariant = buildWordmark('가가', { ...jamoP, skeletons: custom, variants: { ㄱ: 2 } })!;
+    expect(withVariant.paths).toEqual(base.paths);
+    const forced = buildWordmark('가가', { ...jamoP, skeletons: custom, glyphs: { 1: { Lv: 0 } } })!;
+    expect(forced.paths[0]).toEqual(base.paths[0]);
+    expect(forced.paths[1]).not.toEqual(base.paths[1]);
+  });
+
+  it('부드러운 점이 있으면 곡선이 만들어지고, 모두 꺾임이면 꺾은선이다', () => {
+    const corner = nodesToCmds([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }], false, 0);
+    expect(corner.some((c) => c[0] === 'C')).toBe(false);
+    const smooth = nodesToCmds([{ x: 0, y: 0 }, { x: 10, y: 0, s: true }, { x: 10, y: 10 }], false, 0);
+    expect(smooth.some((c) => c[0] === 'C')).toBe(true);
+  });
+
+  it('텍스트에 쓰인 기본 자모를 풀어서 나열한다', () => {
+    const list = jamoCharsIn('꿈은');
+    expect(list).toEqual(expect.arrayContaining(['ㄱ', 'ㅜ', 'ㅁ', 'ㅇ', 'ㅡ', 'ㄴ']));
+    expect(new Set(list).size).toBe(list.length);
+  });
+
+  it('11,172자가 직접 그린 뼈대(모든 자모에 적용)에서도 유한한 좌표로 조립된다', () => {
+    const custom: Record<string, SkelStroke[]> = {};
+    for (const ch of 'ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎㅏㅐㅑㅒㅓㅔㅕㅖㅣㅗㅛㅜㅠㅡ') {
+      custom[ch] = editableStrokes(ch, 1).map((s) =>
+        s.t === 'path' ? { ...s, nodes: s.nodes.map((n) => ({ ...n, x: n.x * 0.9 + 0.05 })) } : s,
+      );
+    }
+    let bad = 0;
+    for (let cp = 0xac00; cp <= 0xd7a3; cp += 5) {
+      const g = buildJamoGlyph(String.fromCodePoint(cp), DEFAULT_JAMO, 0, undefined, undefined, custom);
+      if (!g || g.cmds.some((c) => c.slice(1).some((n) => !Number.isFinite(n as number)))) bad++;
+    }
+    expect(bad).toBe(0);
+  });
+});

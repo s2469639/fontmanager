@@ -39,6 +39,7 @@ export const DEFAULT_PARAMS: Params = {
   jamo: DEFAULT_JAMO,
   glyphs: {},
   fx: DEFAULT_FX,
+  skeletons: {},
   variants: {},
   fontId: 'pretendard',
   weight: 0.5,
