@@ -6,7 +6,7 @@ import { LIMITS } from '../core/defaults';
 import { FONTS, getFont } from '../data/fonts';
 import { axisValue } from '../core/fontStore';
 import { Segmented, Slider, EffectCard } from './Controls';
-import type { BulgeScope, Cap, Corner, Engine, FxParams, GlyphOverride, JamoParams, LinkMode, OShape, Params, PartAdjust, WaveAxis } from '../core/types';
+import type { BulgeScope, Cap, Corner, Engine, FxParams, GlyphOverride, HookStyle, JamoParams, LinkMode, OShape, Params, PartAdjust, WaveAxis } from '../core/types';
 
 const SWATCHES = ['#111111', '#ffffff', '#ff3b1d', '#1f3bff', '#0a8f5b', '#e8a900'];
 
@@ -292,6 +292,40 @@ function JamoControls({ p, setJ, set }: JamoControlsProps) {
         />
       </div>
       <Slider
+        label="부리 (시작)"
+        value={j.hookStart}
+        {...LIMITS.hook}
+        display={j.hookStart <= 0.01 ? '없음' : `${Math.round(j.hookStart * 100)}%`}
+        hint="획이 시작하는 곳을 작게 꺾어요. 명조체의 부리 같은 느낌이에요. 다른 획에 닿은 끝에는 붙지 않아요."
+        onChange={(v) => setJ({ hookStart: v })}
+      />
+      <Slider
+        label="부리 (끝)"
+        value={j.hookEnd}
+        {...LIMITS.hook}
+        display={j.hookEnd <= 0.01 ? '없음' : `${Math.round(j.hookEnd * 100)}%`}
+        hint="획이 끝나는 곳을 작게 꺾어요."
+        onChange={(v) => setJ({ hookEnd: v })}
+      />
+      {(j.hookStart > 0.01 || j.hookEnd > 0.01) && (
+        <div className="field">
+          <span className="field__label">부리 모양</span>
+          <Segmented<HookStyle>
+            label="부리 모양"
+            value={j.hookStyle}
+            options={[
+              { value: 'tick', label: '직각으로 꺾기' },
+              { value: 'beak', label: '비스듬한 부리' },
+            ]}
+            onChange={(v) => setJ({ hookStyle: v })}
+          />
+          <label className="presetbox__check">
+            <input type="checkbox" checked={j.hookFlip} onChange={(e) => setJ({ hookFlip: e.target.checked })} />
+            꺾이는 쪽 반대로
+          </label>
+        </div>
+      )}
+      <Slider
         label="꺾임 둥글기"
         value={j.roundness}
         {...LIMITS.roundness}
@@ -376,8 +410,8 @@ function JamoControls({ p, setJ, set }: JamoControlsProps) {
         label="위아래 어긋남"
         value={j.bounce}
         {...LIMITS.bounce}
-        display={`${(j.bounce * 100).toFixed(1)}%`}
-        hint="글자가 번갈아 위아래로 움직입니다."
+        display={`${j.bounce > 0 ? '+' : ''}${(j.bounce * 100).toFixed(1)}%`}
+        hint="글자가 번갈아 위아래로 움직입니다. 음수(−)로 내리면 첫 글자가 아래로 시작하는 반대 방향이에요."
         onChange={(v) => setJ({ bounce: v })}
       />
       <Slider

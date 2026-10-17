@@ -412,3 +412,71 @@ describe('뼈대 직접 그리기', () => {
     expect(bad).toBe(0);
   });
 });
+
+import { addHooks } from './hook';
+
+describe('부리와 반대로 엇갈림', () => {
+  const jamoP = { ...DEFAULT_PARAMS, engine: 'jamo' as const };
+  const withJ = (j: Partial<typeof DEFAULT_JAMO>) => ({ ...jamoP, jamo: { ...DEFAULT_JAMO, ...j } });
+
+  it('부리를 끄면 기존 결과와 같다', () => {
+    expect(buildWordmark('고요', withJ({ hookStart: 0, hookEnd: 0 }))!.paths).toEqual(buildWordmark('고요', jamoP)!.paths);
+  });
+
+  it('획의 시작점에 직각으로 꺾인 부리가 붙는다', () => {
+    // 왼쪽→오른쪽 가로획: 시작점에서 아래(+y)로 꺾임
+    const out = addHooks([['M', 10, 10], ['L', 50, 10]], { start: 1, end: 0, style: 'tick', flip: false });
+    expect(out[0]).toEqual(['M', 10, 10 + 14]);
+    expect(out[1]).toEqual(['L', 10, 10]);
+  });
+
+  it('끝점 부리는 반대쪽(위)으로 꺾이고, 뒤집으면 방향이 바뀐다', () => {
+    const end = addHooks([['M', 10, 10], ['L', 50, 10]], { start: 0, end: 1, style: 'tick', flip: false });
+    expect(end[end.length - 1]).toEqual(['L', 50, 10 - 14]);
+    const flipped = addHooks([['M', 10, 10], ['L', 50, 10]], { start: 0, end: 1, style: 'tick', flip: true });
+    expect(flipped[flipped.length - 1]).toEqual(['L', 50, 10 + 14]);
+  });
+
+  it('짧은 획에는 획 길이의 일부까지만 부리가 붙는다', () => {
+    const out = addHooks([['M', 10, 10], ['L', 20, 10]], { start: 1, end: 0, style: 'tick', flip: false });
+    const tip = out[0] as ['M', number, number];
+    expect(tip[2] - 10).toBeCloseTo(4); // 길이 10의 40%
+  });
+
+  it('다른 획에 닿은 끝에는 부리를 붙이지 않는다', () => {
+    // ㅗ처럼 줄기 끝이 가로선 위에 닿아 있음
+    const cmds: Cmd[] = [['M', 0, 50], ['L', 100, 50], ['M', 50, 50], ['L', 50, 0]];
+    const out = addHooks(cmds, { start: 1, end: 1, style: 'tick', flip: false });
+    // 줄기의 시작점(50,50)은 가로선에 닿아 있으므로 부리가 붙지 않고, 줄기의 끝(50,0)에만 붙는다
+    const stemStart = out.findIndex((c) => c[0] === 'M' && c[1] === 50 && c[2] === 50);
+    expect(stemStart).toBeGreaterThan(-1);
+    expect(out.filter((c) => c[0] === 'M')).toHaveLength(2);
+  });
+
+  it('비스듬한 부리는 직각 부리와 다른 위치로 뻗는다', () => {
+    const a = addHooks([['M', 10, 10], ['L', 50, 10]], { start: 1, end: 0, style: 'tick', flip: false });
+    const b = addHooks([['M', 10, 10], ['L', 50, 10]], { start: 1, end: 0, style: 'beak', flip: false });
+    expect(a[0]).not.toEqual(b[0]);
+  });
+
+  it('11,172자가 부리를 켜도 유한한 좌표로 조립된다', () => {
+    let bad = 0;
+    for (let cp = 0xac00; cp <= 0xd7a3; cp += 5) {
+      const g = buildJamoGlyph(String.fromCodePoint(cp), { ...DEFAULT_JAMO, hookStart: 1, hookEnd: 1, hookStyle: 'beak', link: 1, linkMode: 'flow' }, 0);
+      if (!g || g.cmds.some((c) => c.slice(1).some((n) => !Number.isFinite(n as number)))) bad++;
+    }
+    expect(bad).toBe(0);
+  });
+
+  it('위아래 어긋남을 음수로 하면 반대 방향으로 엇갈린다', () => {
+    const pos = buildWordmark('가나', withJ({ bounce: 0.1 }))!;
+    const neg = buildWordmark('가나', withJ({ bounce: -0.1 }))!;
+    const flat = buildWordmark('가나', withJ({ bounce: 0 }))!;
+    // 첫 글자: 양수면 위로, 음수면 아래로 (y는 아래가 +)
+    expect(pos.boxes[0].y).toBeLessThan(flat.boxes[0].y);
+    expect(neg.boxes[0].y).toBeGreaterThan(flat.boxes[0].y);
+    // 둘째 글자는 반대
+    expect(pos.boxes[1].y).toBeGreaterThan(flat.boxes[1].y);
+    expect(neg.boxes[1].y).toBeLessThan(flat.boxes[1].y);
+  });
+});

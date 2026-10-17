@@ -43,6 +43,19 @@ const JAMO_DIRECTIONS: Direction[] = [
     experimental: true,
   },
   {
+    id: 'serif',
+    index: '00',
+    nameKo: '부리',
+    nameEn: 'Serif',
+    note: '명조처럼 획 끝을 작게 꺾었어요. 각진 끝과 가는 선으로 단정한 인상입니다.',
+    params: jamo(
+      { strokeW: 0.034, cap: 'butt', roundness: 0, hookStart: 0.6, hookEnd: 0.3, hookStyle: 'tick', gap: 4 },
+      { tracking: 0.04 },
+    ),
+    siblings: [],
+    experimental: true,
+  },
+  {
     id: 'open',
     index: '03',
     nameKo: '열린',
@@ -109,7 +122,10 @@ const FONT_DIRECTIONS: Direction[] = [
   },
 ];
 
-export const DIRECTIONS: Direction[] = [...JAMO_DIRECTIONS, ...FONT_DIRECTIONS];
+export const DIRECTIONS: Direction[] = [...JAMO_DIRECTIONS, ...FONT_DIRECTIONS].map((d, i) => ({
+  ...d,
+  index: String(i + 1).padStart(2, '0'),
+}));
 
 export function directionOf(id: string) {
   return DIRECTIONS.find((d) => d.id === id) ?? DIRECTIONS[0];

@@ -32,6 +32,10 @@ export const DEFAULT_JAMO: JamoParams = {
   bounce: 0,
   link: 0,
   linkMode: 'bridge',
+  hookStart: 0,
+  hookEnd: 0,
+  hookStyle: 'tick',
+  hookFlip: false,
 };
 
 export const DEFAULT_PARAMS: Params = {
@@ -68,7 +72,8 @@ export const LIMITS = {
   vowelScale: { min: 0.3, max: 2.2, step: 0.01 },
   gap: { min: -30, max: 60, step: 0.5 },
   circleGap: { min: 0, max: 0.5, step: 0.01 },
-  bounce: { min: 0, max: 0.45, step: 0.005 },
+  bounce: { min: -0.45, max: 0.45, step: 0.005 },
+  hook: { min: 0, max: 1, step: 0.01 },
   link: { min: 0, max: 1, step: 0.01 },
   width: { min: 20, max: 300, step: 1 },
   tracking: { min: -0.6, max: 2, step: 0.01 },

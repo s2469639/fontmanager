@@ -51,7 +51,14 @@ function mutateJamo(center: Params, rng: () => number, text: string): Params {
   }
   if (rng() < 0.3) j.circleGap = Math.round((0.08 + rng() * 0.2) * 100) / 100;
   else if (rng() < 0.3) j.circleGap = 0;
-  if (rng() < 0.2) j.bounce = Math.round((0.02 + rng() * 0.06) * 1000) / 1000;
+  if (rng() < 0.2) j.bounce = Math.round((0.02 + rng() * 0.06) * (rng() < 0.5 ? -1 : 1) * 1000) / 1000;
+  // 부리: 켜져 있으면 크기를 흔들고, 꺼져 있으면 가끔 켭니다.
+  if (j.hookStart + j.hookEnd > 0.02 ? rng() < 0.35 : rng() < 0.15) {
+    j.hookStart = rng() < 0.2 ? 0 : Math.round((0.25 + rng() * 0.6) * 100) / 100;
+    j.hookEnd = rng() < 0.5 ? 0 : Math.round((0.2 + rng() * 0.5) * 100) / 100;
+    j.hookStyle = rng() < 0.5 ? 'tick' : 'beak';
+    j.hookFlip = rng() < 0.2;
+  }
   // 획 연결: 켜져 있으면 정도와 방식을 흔들고, 꺼져 있으면 가끔 켭니다.
   if (j.link > 0.01 ? rng() < 0.5 : rng() < 0.3) {
     j.link = rng() < 0.15 ? 0 : Math.round((0.3 + rng() * 0.7) * 100) / 100;
@@ -164,7 +171,9 @@ function describeJamoDiff(p: Params, base: Params): string[] {
   const dv = a.vowelScale - b.vowelScale;
   if (Math.abs(dv) > 0.1) tags.push(dv > 0 ? '모음 크게' : '모음 작게');
   if (Math.abs(a.gap - b.gap) > 5) tags.push(a.gap > b.gap ? '초성·모음 멀게' : '초성·모음 붙게');
-  if (a.bounce > 0.015 && b.bounce <= 0.015) tags.push('위아래 어긋남');
+  if (Math.abs(a.bounce) > 0.015 && Math.abs(b.bounce) <= 0.015) tags.push('위아래 어긋남');
+  else if (Math.abs(a.bounce) > 0.015 && a.bounce * b.bounce < 0) tags.push('어긋남 반대로');
+  if (a.hookStart + a.hookEnd > 0.02 && b.hookStart + b.hookEnd <= 0.02) tags.push('부리');
   if (a.link > 0.01 && b.link <= 0.01) tags.push(a.linkMode === 'curve' ? '곡선 연결' : a.linkMode === 'snap' ? '붙이기' : a.linkMode === 'flow' ? '한 획' : '획 연결');
   else if (a.link <= 0.01 && b.link > 0.01) tags.push('연결 끊기');
   else if (a.link > 0.01 && Math.abs(a.link - b.link) > 0.3) tags.push(a.link > b.link ? '더 멀리 연결' : '연결 줄이기');

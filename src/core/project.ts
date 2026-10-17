@@ -9,7 +9,7 @@ import { analyzeText } from './text';
 import { FONTS } from '../data/fonts';
 import { ArtError, MAX_ART_LAYERS, readArtFile } from './art';
 import type { ArtLayer } from './art';
-import type { Cap, Corner, Engine, FxParams, GlyphOverride, JamoParams, LinkMode, OShape, Params, PartAdjust, SkelNode, SkelStroke } from './types';
+import type { Cap, Corner, Engine, FxParams, GlyphOverride, HookStyle, JamoParams, LinkMode, OShape, Params, PartAdjust, SkelNode, SkelStroke } from './types';
 
 export const APP_ID = 'hangul-form-lab';
 export const PROJECT_VERSION = 1;
@@ -45,6 +45,10 @@ function sanitizeJamo(raw: unknown): JamoParams {
     bounce: num(r.bounce, d.bounce, LIMITS.bounce),
     link: num(r.link, d.link, LIMITS.link),
     linkMode: oneOf<LinkMode>(r.linkMode, ['snap', 'bridge', 'curve', 'flow'], d.linkMode),
+    hookStart: num(r.hookStart, d.hookStart, LIMITS.hook),
+    hookEnd: num(r.hookEnd, d.hookEnd, LIMITS.hook),
+    hookStyle: oneOf<HookStyle>(r.hookStyle, ['tick', 'beak'], d.hookStyle),
+    hookFlip: bool(r.hookFlip, d.hookFlip),
   };
 }
 

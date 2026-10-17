@@ -117,7 +117,7 @@ export function Home({ go }: { go: (r: Route) => void }) {
 
       <section className="section">
         <h2 className="section__title">
-          <span className="section__no">B</span> 일곱 가지 조형 방향
+          <span className="section__no">B</span> {DIRECTIONS.length}가지 조형 방향
         </h2>
         <div className="dirs">
           {DIRECTIONS.map((d) => (

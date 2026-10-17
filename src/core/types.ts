@@ -3,6 +3,8 @@ export type Corner = 'sharp' | 'round' | 'bevel';
 export type Cap = 'round' | 'butt' | 'square';
 export type OShape = 'circle' | 'square' | 'diamond';
 /** 획 연결 방식: snap은 자소를 움직여 붙이고, bridge는 직선으로, curve는 곡선으로 잇고, flow는 끝과 끝을 매끄럽게 이어 한 획으로 합칩니다. */
+/** 부리 모양: tick은 직각으로 꺾고, beak는 뒤쪽으로 비스듬히 뻗습니다. */
+export type HookStyle = 'tick' | 'beak';
 export type LinkMode = 'snap' | 'bridge' | 'curve' | 'flow';
 /** font: 글꼴 윤곽선 기반 / jamo: 자음·모음을 선으로 직접 조립(프로토타입) */
 export type Engine = 'font' | 'jamo';
@@ -28,6 +30,12 @@ export interface JamoParams {
   /** 획 연결: 이 거리 안의 인접한 자소를 이어 줍니다. 0이면 끔 (0..1) */
   link: number;
   linkMode: LinkMode;
+  /** 부리(획 끝 꺾기): 시작점·끝점 크기 0..1 */
+  hookStart: number;
+  hookEnd: number;
+  hookStyle: HookStyle;
+  /** 꺾이는 쪽을 반대로 */
+  hookFlip: boolean;
 }
 
 /** 한 글자 안의 초성/모음/받침 하나를 따로 조절하는 값 */
