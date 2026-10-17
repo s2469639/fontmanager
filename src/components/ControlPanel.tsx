@@ -286,6 +286,14 @@ function JamoControls({ p, setJ, set }: JamoControlsProps) {
         hint="가로획은 가늘게, 세로획은 굵게 해서 명조 같은 리듬을 줍니다. 음수(−)로 하면 반대예요. ㅇ 같은 곡선은 굵기가 부드럽게 변해요."
         onChange={(v) => setJ({ contrast: v })}
       />
+      <Slider
+        label="끝 가늘게 (붓 느낌)"
+        value={j.taper}
+        {...LIMITS.taper}
+        display={j.taper <= 0.01 ? '없음' : `${Math.round(j.taper * 100)}%`}
+        hint="획이 끝나는 곳이 서서히 가늘어져요. 굵기 대비와 함께 쓰면 붓글씨 같아져요."
+        onChange={(v) => setJ({ taper: v })}
+      />
       <div className="field">
         <span className="field__label">선 끝</span>
         <Segmented<Cap>

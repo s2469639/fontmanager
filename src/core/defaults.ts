@@ -23,6 +23,7 @@ export const DEFAULT_FX: FxParams = {
 export const DEFAULT_JAMO: JamoParams = {
   strokeW: 0.05,
   contrast: 0,
+  taper: 0,
   cap: 'round',
   roundness: 0.5,
   consonantScale: 1,
@@ -76,6 +77,7 @@ export const LIMITS = {
   bounce: { min: -0.45, max: 0.45, step: 0.005 },
   hook: { min: 0, max: 1, step: 0.01 },
   contrast: { min: -1, max: 1, step: 0.01 },
+  taper: { min: 0, max: 1, step: 0.01 },
   link: { min: 0, max: 1, step: 0.01 },
   width: { min: 20, max: 300, step: 1 },
   tracking: { min: -0.6, max: 2, step: 0.01 },

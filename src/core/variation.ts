@@ -39,6 +39,8 @@ function mutateJamo(center: Params, rng: () => number, text: string): Params {
   j.strokeW = Math.round(clamp(j.strokeW + jitter(rng, 0.02), LIMITS.strokeW.min, LIMITS.strokeW.max) * 1000) / 1000;
   if (rng() < 0.22) j.contrast = Math.round((rng() < 0.85 ? 1 : -1) * (0.3 + rng() * 0.6) * 100) / 100;
   else if (j.contrast !== 0 && rng() < 0.3) j.contrast = 0;
+  if (rng() < 0.18) j.taper = Math.round((0.4 + rng() * 0.6) * 100) / 100;
+  else if (j.taper > 0 && rng() < 0.3) j.taper = 0;
   if (rng() < 0.3) {
     const caps: Cap[] = ['round', 'butt', 'square'];
     j.cap = caps[Math.floor(rng() * 3)];
@@ -160,6 +162,7 @@ function describeJamoDiff(p: Params, base: Params): string[] {
     const i = p.variants[c] ?? 0;
     if (i !== (base.variants[c] ?? 0)) tags.push(`${c} ${variantNames(c)[i] ?? '기본'}`);
   }
+  if (a.taper > 0.2 && b.taper <= 0.2) tags.push('끝 가늘게');
   const dcn = a.contrast - b.contrast;
   if (Math.abs(dcn) > 0.25) tags.push(a.contrast === 0 ? '대비 없앰' : a.contrast > 0 ? '세로 굵게 대비' : '가로 굵게 대비');
   const ds = a.strokeW - b.strokeW;

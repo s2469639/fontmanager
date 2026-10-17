@@ -24,6 +24,8 @@ export interface VStrokeOptions {
   /** 부리 끝점들: 이 점에서는 굵기를 tipScale배로 줄여 삼각형 부리처럼 만듭니다. */
   tips?: Pt[];
   tipScale?: number;
+  /** 끝 가늘게 0..1: 열린 획의 양 끝이 서서히 가늘어집니다. */
+  taper?: number;
 }
 
 const dist = (a: Pt, b: Pt) => Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -126,12 +128,45 @@ function widthAt(d: Pt, o: VStrokeOptions): number {
 /** 긴 직선 구간은 끝까지 같은 굵기를 유지합니다. (이보다 짧은 구간만 이웃과 부드럽게 섞음) */
 const STRAIGHT_LEN = 8;
 
+/** 끝 가늘게가 시작되는 곳: 끝에서부터 이 길이(또는 획 길이의 일정 비율)만큼 */
+const TAPER_LEN = 22;
+const TAPER_RATIO = 0.6;
+
+/** 열린 경로의 양 끝에 '꼬리' 구간을 만들기 위해 끝 선분을 둘로 나눕니다. */
+function withTails(pts: Pt[]): Pt[] {
+  const n = pts.length;
+  if (n < 2) return pts;
+  const out = [...pts];
+  const split = (a: Pt, b: Pt): Pt | null => {
+    const l = dist(a, b);
+    const tail = Math.min(TAPER_LEN, l * TAPER_RATIO);
+    if (tail < 1 || l - tail < 1) return null;
+    const t = (l - tail) / l;
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  };
+  // 끝쪽 먼저 (인덱스가 밀리지 않게)
+  const endCut = split(out[n - 2], out[n - 1]);
+  if (endCut) out.splice(n - 1, 0, endCut);
+  const startCut = split(out[1], out[0]);
+  if (startCut) out.splice(1, 0, startCut);
+  return out;
+}
+
 export function variableStroke(cmds: Cmd[], o: VStrokeOptions): Cmd[] {
   const out: Cmd[] = [];
   const emit = (poly: Pt[]) => out.push(...normalized(poly));
 
   for (const sub of toSubs(cmds)) {
-    const { pts, closed } = sub;
+    const { closed } = sub;
+    const taperOn = !closed && (o.taper ?? 0) > 0;
+    const pts = taperOn ? withTails(sub.pts) : sub.pts;
+    // 붓처럼 시작은 뭉툭하게(조금만 가늘게), 끝은 크게 가늘게 합니다.
+    const taperEnds: { p: Pt; f: number }[] = taperOn
+      ? [
+          { p: pts[0], f: 1 - 0.85 * (o.taper ?? 0) * 0.3 },
+          { p: pts[pts.length - 1], f: 1 - 0.85 * (o.taper ?? 0) },
+        ]
+      : [];
     const n = pts.length;
     const m = closed ? n : n - 1;
     if (m < 1) continue;
@@ -152,13 +187,18 @@ export function variableStroke(cmds: Cmd[], o: VStrokeOptions): Cmd[] {
       return (Math.acos(c) * 180) / Math.PI;
     };
 
-    const isTip = (i: number) => !!o.tips?.some((t) => dist(t, pts[i]) < 1e-4);
+    /** 이 꼭짓점에서 굵기를 얼마나 줄일지 (부리 끝, 끝 가늘게 중 더 가는 쪽) */
+    const tipFactor = (i: number) => {
+      let f = 1;
+      if (o.tips?.some((t) => dist(t, pts[i]) < 1e-4)) f = Math.min(f, o.tipScale ?? 0.25);
+      for (const t of taperEnds) if (dist(t.p, pts[i]) < 1e-4) f = Math.min(f, t.f);
+      return f;
+    };
     const segLen = (k: number) => dist(pts[k], pts[(k + 1) % n]);
 
     /** 꼭짓점 i에서 선분 k 쪽으로 쓰는 굵기의 절반 */
     const halfAt = (i: number, k: number) => {
-      const base = halfBase(i, k);
-      return isTip(i) ? base * (o.tipScale ?? 0.25) : base;
+      return halfBase(i, k) * tipFactor(i);
     };
     const halfBase = (i: number, k: number) => {
       const t = turnDeg(i);
@@ -239,7 +279,7 @@ export function variableStroke(cmds: Cmd[], o: VStrokeOptions): Cmd[] {
       ];
       for (const e of ends) {
         const p = pts[e.i];
-        const h = widthAt(dirs[e.k], o) / 2;
+        const h = halfAt(e.i, e.k);
         if (o.cap === 'round') {
           emit(circle(p, h));
         } else if (o.cap === 'square') {

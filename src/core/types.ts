@@ -15,6 +15,8 @@ export interface JamoParams {
   strokeW: number;
   /** 굵기 대비 -1..1: 양수는 세로획을 굵게·가로획을 가늘게(명조), 음수는 반대 */
   contrast: number;
+  /** 끝 가늘게(붓 느낌) 0..1: 획이 끝나는 곳이 서서히 가늘어짐 */
+  taper: number;
   cap: Cap;
   /** 꺾이는 곳을 둥글리는 정도 0..1 */
   roundness: number;

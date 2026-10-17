@@ -56,6 +56,19 @@ const JAMO_DIRECTIONS: Direction[] = [
     experimental: true,
   },
   {
+    id: 'brush',
+    index: '00',
+    nameKo: '붓',
+    nameEn: 'Brush',
+    note: '획 끝이 서서히 가늘어지고 모서리가 둥글어요. 붓으로 쓴 듯한 흐름이에요.',
+    params: jamo(
+      { strokeW: 0.062, contrast: 0.35, taper: 0.85, cap: 'round', roundness: 0.9, gap: 3, link: 0.5, linkMode: 'flow' },
+      { tracking: 0.03 },
+    ),
+    siblings: [],
+    experimental: true,
+  },
+  {
     id: 'open',
     index: '03',
     nameKo: '열린',

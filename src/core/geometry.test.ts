@@ -564,3 +564,58 @@ describe('가로 세로 굵기 대비', () => {
     expect(b.paths[1]).toEqual(a.paths[1]);
   });
 });
+
+describe('끝 가늘게 (붓 느낌)', () => {
+  const jamoP = { ...DEFAULT_PARAMS, engine: 'jamo' as const };
+  const withJ = (j: Partial<typeof DEFAULT_JAMO>) => ({ ...jamoP, jamo: { ...DEFAULT_JAMO, ...j } });
+  const opts = { widthH: 8, widthV: 8, cap: 'butt' as const, join: 'miter' as const, miterLimit: 3 };
+
+  it('끝 가늘게만 켜도 면(채우기)으로 그려진다', () => {
+    const wm = buildWordmark('고요', withJ({ taper: 0.8 }))!;
+    expect(wm.fill).toBe(true);
+    expect(wm.strokeWidth).toBe(0);
+    expect(buildWordmark('고요', withJ({ taper: 0 }))!.fill).toBe(false);
+  });
+
+  it('획의 끝으로 갈수록 굵기가 줄어든다', () => {
+    const cmds = variableStroke([['M', 0, 0], ['L', 0, 60]], { ...opts, taper: 1 });
+    // 끝(y=60)의 폭은 가운데 폭보다 훨씬 좁아야 한다
+    const widthAt = (y: number) => {
+      const xs: number[] = [];
+      for (const c of cmds) {
+        if (c[0] === 'Z') continue;
+        if (Math.abs((c[2] as number) - y) < 0.6) xs.push(c[1] as number);
+      }
+      return xs.length ? Math.max(...xs) - Math.min(...xs) : 0;
+    };
+    expect(widthAt(38)).toBeCloseTo(8, 0); // 가늘어지기 시작하는 지점까지는 원래 굵기
+    const xsAtEnd = cmds.filter((c) => c[0] !== 'Z' && Math.abs((c[2] as number) - 60) < 0.01).map((c) => c[1] as number);
+    expect(Math.max(...xsAtEnd) - Math.min(...xsAtEnd)).toBeLessThan(2);
+  });
+
+  it('끝 가늘게는 닫힌 도형(ㅇ)에는 영향을 주지 않는다', () => {
+    const ring = variableStroke([['M', 10, 0], ['L', 20, 0], ['L', 20, 10], ['L', 10, 10], ['Z']], { ...opts, taper: 1 });
+    const plain = variableStroke([['M', 10, 0], ['L', 20, 0], ['L', 20, 10], ['L', 10, 10], ['Z']], opts);
+    expect(JSON.stringify(ring)).toEqual(JSON.stringify(plain));
+  });
+
+  it('둥근 끝은 가늘어진 끝에 맞춰 작아진다', () => {
+    const round = variableStroke([['M', 0, 0], ['L', 0, 60]], { ...opts, cap: 'round', taper: 1 });
+    const ys = round.filter((c) => c[0] !== 'Z').map((c) => c[2] as number);
+    // 끝에 반지름 8/2 짜리 원을 그렸다면 y가 60+4까지 나가지만, 가늘어진 끝(약 0.6)에서는 거의 안 나간다
+    expect(Math.max(...ys)).toBeLessThan(61.5);
+  });
+
+  it('11,172자가 끝 가늘게+굵기 대비+한 획에서도 유한한 좌표로 조립된다', () => {
+    let bad = 0;
+    for (let cp = 0xac00; cp <= 0xd7a3; cp += 7) {
+      const g = buildJamoGlyph(
+        String.fromCodePoint(cp),
+        { ...DEFAULT_JAMO, taper: 0.9, contrast: 0.5, hookStart: 0.5, link: 0.8, linkMode: 'flow', roundness: 0.8 },
+        0,
+      );
+      if (!g || g.cmds.length === 0 || g.cmds.some((c) => c.slice(1).some((n) => !Number.isFinite(n as number)))) bad++;
+    }
+    expect(bad).toBe(0);
+  });
+});

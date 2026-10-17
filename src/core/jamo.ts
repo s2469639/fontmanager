@@ -358,8 +358,11 @@ function placeConsonant(name: string, rect: Rect, out: PlacedStroke[], pick: Pic
     const wide = 'ㅅㅈㅊ'.includes(pair[0]);
     const gap = w * (wide ? 0.2 : 0.1);
     const half = (w - gap) / 2;
-    placeConsonant(pair[0], [rect[0], rect[1], rect[0] + half, rect[3]], out, pick);
-    placeConsonant(pair[1], [rect[2] - half, rect[1], rect[2], rect[3]], out, pick);
+    // 좁은 칸에 두 개가 들어가면 가늘고 길어지므로, ㅆ·ㅉ 계열은 높이도 조금 줄여 비율을 맞춥니다.
+    const cy = (rect[1] + rect[3]) / 2;
+    const hh = ((rect[3] - rect[1]) * (wide ? 0.84 : 1)) / 2;
+    placeConsonant(pair[0], [rect[0], cy - hh, rect[0] + half, cy + hh], out, pick);
+    placeConsonant(pair[1], [rect[2] - half, cy - hh, rect[2], cy + hh], out, pick);
     return;
   }
   const strokes = variantStrokes(CONS_VARIANTS, name, pick);
@@ -927,8 +930,13 @@ export function buildJamoGlyph(
   // 부리는 연결이 끝난 뒤 남은 '자유로운' 획 끝에만 붙입니다.
   const hooked = addHooksDetailed(linked, { start: jp.hookStart, end: jp.hookEnd, style: jp.hookStyle, flip: jp.hookFlip });
   const cmds =
-    jp.contrast !== 0
-      ? variableStroke(hooked.cmds, { ...contrastOptions(jp, ov?.stroke ?? 1), tips: hooked.tips, tipScale: 0.22 })
+    jp.contrast !== 0 || jp.taper > 0
+      ? variableStroke(hooked.cmds, {
+          ...contrastOptions(jp, ov?.stroke ?? 1),
+          tips: hooked.tips,
+          tipScale: 0.22,
+          taper: jp.taper,
+        })
       : hooked.cmds;
   const bounce = jp.bounce * 1000 * (index % 2 === 0 ? 1 : -1);
   return { char: ch, cmds: toGlyphSpace(cmds, bounce), advance: CELL, fromFallback: false };
