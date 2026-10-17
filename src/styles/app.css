@@ -1371,3 +1371,18 @@ input[type='range']::-moz-range-thumb {
 .skel__node--radius {
   fill: var(--ink);
 }
+
+.skel__svg.is-drawing {
+  cursor: crosshair;
+}
+.skel__svg.is-drawing .skel__hit,
+.skel__svg.is-drawing .skel__node {
+  pointer-events: none;
+}
+.skel__live {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

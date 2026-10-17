@@ -2,6 +2,8 @@ import { useMemo, useRef, useState } from 'react';
 import type { PointerEvent as RPointerEvent } from 'react';
 import { useStore } from '../state/store';
 import { editableStrokes, jamoCharsIn, skeletonStrokePath } from '../core/jamo';
+import { simplifyFreehand } from '../core/freehand';
+import { Segmented } from './Controls';
 import type { Params, SkelNode, SkelStroke } from '../core/types';
 
 /** 화면 좌표 -14..114 (0..100이 자모가 놓이는 상자, 바깥은 점을 끌어 낼 여유) */
@@ -33,6 +35,12 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
   const [snap, setSnap] = useState(true);
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag>(null);
+  const [mode, setMode] = useState<'edit' | 'draw'>('edit');
+  const [live, setLive] = useState<[number, number][]>([]);
+  const drawing = useRef<[number, number][] | null>(null);
+  /** 새로 그리기: 다음 선부터 기존 뼈대를 지우고 처음부터 시작 */
+  const [fresh, setFresh] = useState(false);
+  const [drawNote, setDrawNote] = useState<string | null>(null);
 
   const custom = ch ? p.skeletons[ch] : undefined;
   const strokes = useMemo<SkelStroke[]>(
@@ -55,6 +63,72 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
     const step = snap && !e.altKey ? 0.05 : 0;
     const f = (v: number) => clamp(step ? Math.round(v / step) * step : v, -0.5, 1.5);
     return { x: f(q.x / 100), y: f(q.y / 100) };
+  };
+
+  /** 손으로 그릴 때는 격자에 맞추지 않고 그대로 따라갑니다. */
+  const toFree = (e: { clientX: number; clientY: number }): [number, number] => {
+    const svg = svgRef.current!;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const m = svg.getScreenCTM();
+    const q = m ? pt.matrixTransform(m.inverse()) : pt;
+    return [clamp(q.x / 100, -0.3, 1.3), clamp(q.y / 100, -0.3, 1.3)];
+  };
+
+  const rootDown = (e: RPointerEvent<SVGSVGElement>) => {
+    if (mode === 'draw') {
+      e.preventDefault();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      drawing.current = [toFree(e)];
+      setLive([...drawing.current]);
+      setDrawNote(null);
+      return;
+    }
+    setSel(null);
+  };
+
+  const rootMove = (e: RPointerEvent<SVGSVGElement>) => {
+    const d = drawing.current;
+    if (d) {
+      const p = toFree(e);
+      const last = d[d.length - 1];
+      if (Math.hypot(p[0] - last[0], p[1] - last[1]) > 0.004) {
+        d.push(p);
+        setLive([...d]);
+      }
+      return;
+    }
+    onMove(e);
+  };
+
+  const rootUp = () => {
+    const d = drawing.current;
+    if (!d) {
+      endDrag();
+      return;
+    }
+    drawing.current = null;
+    setLive([]);
+    const stroke = simplifyFreehand(d);
+    if (!stroke) {
+      setDrawNote('선이 너무 짧아서 건너뛰었어요.');
+      return;
+    }
+    if (!fresh && strokes.length >= MAX_STROKES) {
+      setDrawNote(`획은 ${MAX_STROKES}개까지 넣을 수 있어요. 점 편집에서 획을 지워 주세요.`);
+      return;
+    }
+    const next = fresh ? [stroke] : [...clone(strokes), stroke];
+    setFresh(false);
+    commit(next);
+    setSel(null);
+  };
+
+  const removeLast = () => {
+    if (strokes.length <= 1) return;
+    commit(clone(strokes).slice(0, -1));
+    setSel(null);
   };
 
   const startDrag = (e: RPointerEvent<SVGElement>, d: Drag) => {
@@ -215,15 +289,36 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
         ))}
       </div>
 
+      <div className="field" style={{ marginBottom: 10 }}>
+        <Segmented<'edit' | 'draw'>
+          label="뼈대 편집 방식"
+          value={mode}
+          options={[
+            { value: 'edit', label: '점 편집' },
+            { value: 'draw', label: '손으로 그리기' },
+          ]}
+          onChange={(v) => {
+            setMode(v);
+            setSel(null);
+            if (v === 'edit') setFresh(false);
+          }}
+        />
+        {mode === 'draw' && (
+          <p className="field__note">
+            아래 칸에 펜·손가락·마우스로 선을 그리면 자동으로 매끈하게 다듬어져 획이 돼요. 꺾이는 곳은 꺾인 채로, 완만한 곳은
+            부드럽게 남고, 처음과 끝이 만나면 고리가 돼요. 그린 뒤에는 ‘점 편집’에서 점을 더 고칠 수 있어요.
+          </p>
+        )}
+      </div>
       <div className="skel" onKeyDown={onKey} tabIndex={0} aria-label={`${ch} 뼈대 편집 영역`}>
         <svg
           ref={svgRef}
           viewBox={VB}
-          className="skel__svg"
-          onPointerMove={onMove}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
-          onPointerDown={() => setSel(null)}
+          className={mode === 'draw' ? 'skel__svg is-drawing' : 'skel__svg'}
+          onPointerMove={rootMove}
+          onPointerUp={rootUp}
+          onPointerCancel={rootUp}
+          onPointerDown={rootDown}
         >
           <rect x={0} y={0} width={100} height={100} className="skel__box" />
           {[10, 20, 30, 40, 50, 60, 70, 80, 90].map((g) => (
@@ -237,6 +332,11 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
           {strokes.map((st, i) => (
             <path key={`p${i}`} d={skeletonStrokePath(st)} className="skel__line" pointerEvents="none" />
           ))}
+
+          {/* 지금 그리고 있는 선 */}
+          {live.length > 1 && (
+            <polyline points={live.map((q) => `${q[0] * 100},${q[1] * 100}`).join(' ')} className="skel__live" pointerEvents="none" />
+          )}
 
           {/* 선분을 눌러 점 추가 */}
           {strokes.map((st, si) =>
@@ -357,6 +457,26 @@ export function SkeletonEditor({ p, set }: { p: Params; set: (patch: Partial<Par
           상하 뒤집기
         </button>
       </div>
+      {mode === 'draw' && (
+        <div className="artactions" style={{ marginTop: 6 }}>
+          <button
+            type="button"
+            className={fresh ? 'btn btn--soft is-on' : 'btn btn--soft'}
+            aria-pressed={fresh}
+            onClick={() => setFresh((f) => !f)}
+          >
+            {fresh ? '다음 선부터 새로 시작(켜짐)' : '새로 그리기'}
+          </button>
+          <button type="button" className="btn btn--soft" disabled={strokes.length <= 1} onClick={removeLast}>
+            마지막 획 지우기
+          </button>
+        </div>
+      )}
+      {drawNote && (
+        <p className="hint hint--warn" role="status" style={{ marginTop: 6 }}>
+          {drawNote}
+        </p>
+      )}
       <div className="artactions" style={{ marginTop: 6 }}>
         <button type="button" className="btn btn--ghost" disabled={!custom} onClick={reset}>
           {ch}을(를) 기본 모양으로 되돌리기
