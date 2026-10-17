@@ -35,6 +35,7 @@ function sanitizeJamo(raw: unknown): JamoParams {
   const d = DEFAULT_JAMO;
   return {
     strokeW: num(r.strokeW, d.strokeW, LIMITS.strokeW),
+    contrast: num(r.contrast, d.contrast, LIMITS.contrast),
     cap: oneOf<Cap>(r.cap, ['round', 'butt', 'square'], d.cap),
     roundness: num(r.roundness, d.roundness, LIMITS.roundness),
     consonantScale: num(r.consonantScale, d.consonantScale, LIMITS.consonantScale),

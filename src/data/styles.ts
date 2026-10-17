@@ -47,9 +47,9 @@ const JAMO_DIRECTIONS: Direction[] = [
     index: '00',
     nameKo: '부리',
     nameEn: 'Serif',
-    note: '명조처럼 획 끝을 작게 꺾었어요. 각진 끝과 가는 선으로 단정한 인상입니다.',
+    note: '명조처럼 가로획은 가늘고 세로획은 굵게, 획 끝에는 삼각형 부리를 달았어요.',
     params: jamo(
-      { strokeW: 0.034, cap: 'butt', roundness: 0, hookStart: 0.6, hookEnd: 0.3, hookStyle: 'tick', gap: 4 },
+      { strokeW: 0.052, contrast: 0.75, cap: 'butt', roundness: 0, hookStart: 0.7, hookEnd: 0.35, hookStyle: 'tick', gap: 4 },
       { tracking: 0.04 },
     ),
     siblings: [],

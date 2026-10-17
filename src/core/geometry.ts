@@ -25,6 +25,18 @@ export interface StrokeSpec {
 export function strokeSpec(p: Params): StrokeSpec {
   if (p.engine === 'jamo') {
     const j = p.jamo;
+    // 굵기 대비가 켜지면 선 대신 굵기가 변하는 면으로 그리므로 선(stroke) 없이 채웁니다.
+    if (j.contrast !== 0) {
+      return {
+        fill: true,
+        knockout: false,
+        linecap: 'butt',
+        strokeWidth: 0,
+        linejoin: 'miter',
+        miterLimit: 2.5,
+        opacity: p.overlapOn ? p.overlapOpacity : 1,
+      };
+    }
     return {
       fill: false,
       knockout: false,
@@ -190,7 +202,7 @@ export function buildWordmark(text: string, p: Params): Wordmark | null {
       }
       drawn++;
       raws.push(toFinalCmds(g, cursor, sx, sy, skewTan));
-      widths.push(p.jamo.strokeW * UNIT * (ov?.stroke ?? 1));
+      widths.push(p.jamo.contrast !== 0 ? 0 : p.jamo.strokeW * UNIT * (ov?.stroke ?? 1));
       cursor += g.advance * sx + gap;
       continue;
     }

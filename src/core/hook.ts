@@ -131,7 +131,13 @@ function forward(pts: Pt[], at: 'start' | 'end'): Pt {
 
 /** 열린 획의 시작·끝에 부리를 붙입니다. 옵션이 모두 0이면 입력을 그대로 돌려줍니다. */
 export function addHooks(cmds: Cmd[], o: HookOptions): Cmd[] {
-  if (o.start <= 0.01 && o.end <= 0.01) return cmds;
+  return addHooksDetailed(cmds, o).cmds;
+}
+
+/** addHooks와 같지만, 새로 생긴 부리 끝점(굵기 대비에서 삼각형으로 가늘어질 자리)도 함께 돌려줍니다. */
+export function addHooksDetailed(cmds: Cmd[], o: HookOptions): { cmds: Cmd[]; tips: Pt[] } {
+  const tips: Pt[] = [];
+  if (o.start <= 0.01 && o.end <= 0.01) return { cmds, tips };
   const pieces = split(cmds);
   const side = o.flip ? -1 : 1;
   const out: Cmd[] = [];
@@ -150,6 +156,7 @@ export function addHooks(cmds: Cmd[], o: HookOptions): Cmd[] {
         const back = o.style === 'beak' ? 0.7 : 0;
         const tip: Pt = [first[0] + perp[0] * L - f[0] * L * back, first[1] + perp[1] * L - f[1] * L * back];
         body = [['M', tip[0], tip[1]], ['L', first[0], first[1]], ...body.slice(1)];
+        tips.push(tip);
       }
 
       if (o.end > 0.01 && !touchesOther(last, pieces, idx)) {
@@ -160,10 +167,11 @@ export function addHooks(cmds: Cmd[], o: HookOptions): Cmd[] {
         const fwd = o.style === 'beak' ? 0.5 : 0;
         const tip: Pt = [last[0] + perp[0] * L + f[0] * L * fwd, last[1] + perp[1] * L + f[1] * L * fwd];
         body = [...body, ['L', tip[0], tip[1]]];
+        tips.push(tip);
       }
     }
     out.push(...body);
     if (pc.closed) out.push(['Z']);
   });
-  return out;
+  return { cmds: out, tips };
 }

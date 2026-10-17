@@ -278,6 +278,14 @@ function JamoControls({ p, setJ, set }: JamoControlsProps) {
         hint="모든 획이 같은 굵기의 선입니다."
         onChange={(v) => setJ({ strokeW: v })}
       />
+      <Slider
+        label="굵기 대비"
+        value={j.contrast}
+        {...LIMITS.contrast}
+        display={j.contrast === 0 ? '없음' : `${j.contrast > 0 ? '세로 굵게' : '가로 굵게'} ${Math.round(Math.abs(j.contrast) * 100)}%`}
+        hint="가로획은 가늘게, 세로획은 굵게 해서 명조 같은 리듬을 줍니다. 음수(−)로 하면 반대예요. ㅇ 같은 곡선은 굵기가 부드럽게 변해요."
+        onChange={(v) => setJ({ contrast: v })}
+      />
       <div className="field">
         <span className="field__label">선 끝</span>
         <Segmented<Cap>

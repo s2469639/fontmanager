@@ -37,6 +37,8 @@ function mutateJamo(center: Params, rng: () => number, text: string): Params {
   }
   const j = p.jamo;
   j.strokeW = Math.round(clamp(j.strokeW + jitter(rng, 0.02), LIMITS.strokeW.min, LIMITS.strokeW.max) * 1000) / 1000;
+  if (rng() < 0.22) j.contrast = Math.round((rng() < 0.85 ? 1 : -1) * (0.3 + rng() * 0.6) * 100) / 100;
+  else if (j.contrast !== 0 && rng() < 0.3) j.contrast = 0;
   if (rng() < 0.3) {
     const caps: Cap[] = ['round', 'butt', 'square'];
     j.cap = caps[Math.floor(rng() * 3)];
@@ -158,6 +160,8 @@ function describeJamoDiff(p: Params, base: Params): string[] {
     const i = p.variants[c] ?? 0;
     if (i !== (base.variants[c] ?? 0)) tags.push(`${c} ${variantNames(c)[i] ?? '기본'}`);
   }
+  const dcn = a.contrast - b.contrast;
+  if (Math.abs(dcn) > 0.25) tags.push(a.contrast === 0 ? '대비 없앰' : a.contrast > 0 ? '세로 굵게 대비' : '가로 굵게 대비');
   const ds = a.strokeW - b.strokeW;
   if (Math.abs(ds) > 0.01) tags.push(ds > 0 ? '더 굵은 선' : '더 가는 선');
   if (a.cap !== b.cap) tags.push(a.cap === 'round' ? '둥근 끝' : a.cap === 'square' ? '각진 끝' : '평평한 끝');

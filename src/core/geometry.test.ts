@@ -480,3 +480,87 @@ describe('부리와 반대로 엇갈림', () => {
     expect(neg.boxes[1].y).toBeLessThan(flat.boxes[1].y);
   });
 });
+
+import { variableStroke } from './vstroke';
+
+describe('가로 세로 굵기 대비', () => {
+  const jamoP = { ...DEFAULT_PARAMS, engine: 'jamo' as const };
+  const withJ = (j: Partial<typeof DEFAULT_JAMO>) => ({ ...jamoP, jamo: { ...DEFAULT_JAMO, ...j } });
+  const opts = { widthH: 2, widthV: 10, cap: 'butt' as const, join: 'miter' as const, miterLimit: 3 };
+
+  it('대비가 0이면 기존처럼 선으로, 0이 아니면 면(채우기)으로 그린다', () => {
+    expect(buildWordmark('고요', withJ({ contrast: 0 }))!.fill).toBe(false);
+    const on = buildWordmark('고요', withJ({ contrast: 0.6 }))!;
+    expect(on.fill).toBe(true);
+    expect(on.strokeWidth).toBe(0);
+    expect(on.paths[0]).toMatch(/Z/);
+  });
+
+  it('수평 획은 가늘고 수직 획은 굵다', () => {
+    // 가로선: 높이가 widthH, 세로선: 너비가 widthV
+    const hBox = (() => {
+      const cmds = variableStroke([['M', 0, 0], ['L', 50, 0]], opts);
+      const ys = cmds.filter((c) => c[0] !== 'Z').map((c) => c[2] as number);
+      return Math.max(...ys) - Math.min(...ys);
+    })();
+    const vBox = (() => {
+      const cmds = variableStroke([['M', 0, 0], ['L', 0, 50]], opts);
+      const xs = cmds.filter((c) => c[0] !== 'Z').map((c) => c[1] as number);
+      return Math.max(...xs) - Math.min(...xs);
+    })();
+    expect(hBox).toBeCloseTo(2);
+    expect(vBox).toBeCloseTo(10);
+  });
+
+  it('원은 좌우가 굵고 위아래가 가늘다', () => {
+    const wm = buildWordmark('ㅇ', withJ({ contrast: 0.9, strokeW: 0.08 }))!;
+    expect(wm.paths).toHaveLength(1);
+    expect(wm.bbox.w).toBeGreaterThan(0);
+  });
+
+  it('음수 대비는 반대로 가로가 굵고 세로가 가늘다', () => {
+    const cmds = variableStroke([['M', 0, 0], ['L', 50, 0]], { ...opts, widthH: 10, widthV: 2 });
+    const ys = cmds.filter((c) => c[0] !== 'Z').map((c) => c[2] as number);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(10);
+  });
+
+  it('부리 끝점은 굵기가 줄어 삼각형처럼 가늘어진다', () => {
+    const plain = variableStroke([['M', 0, 0], ['L', 20, 0], ['L', 20, 10]], opts);
+    const tipped = variableStroke([['M', 0, 0], ['L', 20, 0], ['L', 20, 10]], { ...opts, tips: [[20, 10]], tipScale: 0.2 });
+    expect(JSON.stringify(plain)).not.toEqual(JSON.stringify(tipped));
+  });
+
+  it('둥근/각진 끝과 이음 방식에서 좌표가 모두 유한하다', () => {
+    for (const cap of ['round', 'butt', 'square'] as const) {
+      for (const join of ['round', 'miter', 'bevel'] as const) {
+        const cmds = variableStroke(
+          [['M', 0, 0], ['L', 30, 0], ['L', 30, 30], ['Q', 30, 50, 10, 50], ['Z']],
+          { ...opts, cap, join },
+        );
+        for (const c of cmds) for (const n of c.slice(1)) expect(Number.isFinite(n as number)).toBe(true);
+      }
+    }
+  });
+
+  it('11,172자가 대비+부리+한 획에서도 유한한 좌표로 조립된다', () => {
+    let bad = 0;
+    const t0 = Date.now();
+    for (let cp = 0xac00; cp <= 0xd7a3; cp += 6) {
+      const g = buildJamoGlyph(
+        String.fromCodePoint(cp),
+        { ...DEFAULT_JAMO, contrast: 0.8, hookStart: 0.8, hookEnd: 0.4, link: 0.8, linkMode: 'flow', gap: 6 },
+        0,
+      );
+      if (!g || g.cmds.length === 0 || g.cmds.some((c) => c.slice(1).some((n) => !Number.isFinite(n as number)))) bad++;
+    }
+    expect(bad).toBe(0);
+    expect(Date.now() - t0).toBeLessThan(20000);
+  });
+
+  it('글자별 선 굵기 배율이 대비 모드에서도 반영된다', () => {
+    const a = buildWordmark('고요', withJ({ contrast: 0.6 }))!;
+    const b = buildWordmark('고요', { ...withJ({ contrast: 0.6 }), glyphs: { 0: { stroke: 2 } } })!;
+    expect(b.paths[0]).not.toEqual(a.paths[0]);
+    expect(b.paths[1]).toEqual(a.paths[1]);
+  });
+});

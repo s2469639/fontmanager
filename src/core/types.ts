@@ -13,6 +13,8 @@ export type Engine = 'font' | 'jamo';
 export interface JamoParams {
   /** 선 굵기(em) */
   strokeW: number;
+  /** 굵기 대비 -1..1: 양수는 세로획을 굵게·가로획을 가늘게(명조), 음수는 반대 */
+  contrast: number;
   cap: Cap;
   /** 꺾이는 곳을 둥글리는 정도 0..1 */
   roundness: number;

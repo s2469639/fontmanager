@@ -10,7 +10,8 @@
  */
 import type { Cmd, GlyphOverride, GlyphShape, JamoParams, PartAdjust, SkelNode, SkelStroke } from './types';
 import { flowMerge } from './flow';
-import { addHooks } from './hook';
+import { addHooksDetailed } from './hook';
+import { variableStroke } from './vstroke';
 
 type Pt = [number, number];
 type Rect = [number, number, number, number]; // x0, y0, x1, y1 (설계 좌표 0..100, y는 아래로)
@@ -884,6 +885,21 @@ function strokeCmds(s: PlacedStroke, radius: number, local: JamoParams): Cmd[] {
   return ringCmds(s.c, s.rx, s.ry, s.rot, local, Math.min(radius, Math.min(s.rx, s.ry) * 0.9));
 }
 
+/** 굵기 대비 설정을 설계 단위의 가로·세로 굵기로 바꿉니다. (기준 굵기는 가로·세로의 중간값) */
+function contrastOptions(jp: JamoParams, mult: number) {
+  const base = ((jp.strokeW * 1000) / (CELL / DESIGN)) * mult;
+  const c = Math.abs(jp.contrast);
+  const thick = base * (1 + 0.5 * c);
+  const thin = base * (1 - 0.8 * c);
+  return {
+    widthH: jp.contrast > 0 ? thin : thick,
+    widthV: jp.contrast > 0 ? thick : thin,
+    cap: jp.cap,
+    join: (jp.cap === 'round' || jp.roundness > 0 ? 'round' : 'miter') as 'round' | 'miter',
+    miterLimit: 3,
+  };
+}
+
 export function buildJamoGlyph(
   ch: string,
   jp: JamoParams,
@@ -905,7 +921,11 @@ export function buildJamoGlyph(
       ? flowMerge(partCmds.flat(), link * FLOW_MAX_REACH)
       : [...partCmds.flat(), ...linkParts(partCmds, link * LINK_MAX_REACH, jp.linkMode)];
   // 부리는 연결이 끝난 뒤 남은 '자유로운' 획 끝에만 붙입니다.
-  const cmds = addHooks(linked, { start: jp.hookStart, end: jp.hookEnd, style: jp.hookStyle, flip: jp.hookFlip });
+  const hooked = addHooksDetailed(linked, { start: jp.hookStart, end: jp.hookEnd, style: jp.hookStyle, flip: jp.hookFlip });
+  const cmds =
+    jp.contrast !== 0
+      ? variableStroke(hooked.cmds, { ...contrastOptions(jp, ov?.stroke ?? 1), tips: hooked.tips, tipScale: 0.22 })
+      : hooked.cmds;
   const bounce = jp.bounce * 1000 * (index % 2 === 0 ? 1 : -1);
   return { char: ch, cmds: toGlyphSpace(cmds, bounce), advance: CELL, fromFallback: false };
 }
