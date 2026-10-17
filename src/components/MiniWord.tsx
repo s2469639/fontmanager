@@ -17,7 +17,7 @@ export function MiniWord({ text, params, bg = 'light', pad = 0.08, className }: 
   if (!wordmark) return <span className={`miniword__wait ${className ?? ''}`} aria-hidden="true" />;
   return (
     <WordmarkSVG
-      layers={[{ wordmark, color: resolveColor(params.color, bg) }]}
+      layers={[{ wordmark, color: resolveColor(params.color, bg, params.plate) }]}
       pad={pad}
       label={text}
       className={className}

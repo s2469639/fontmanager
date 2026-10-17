@@ -396,6 +396,22 @@ describe('뼈대 직접 그리기', () => {
     expect(b.paths[0]).not.toEqual(a.paths[0]);
   });
 
+  it('배경 판은 글자를 가운데에 두고 bbox를 판까지 넓힌다', () => {
+    const plain = buildWordmark('가나', jamoP)!;
+    expect(plain.plate).toBeUndefined();
+    const on = buildWordmark('가나', { ...jamoP, plate: { ...jamoP.plate, on: true, padX: 0.3, padY: 0.2 } })!;
+    expect(on.paths).toEqual(plain.paths);
+    const pl = on.plate!;
+    expect(pl.w).toBeCloseTo(plain.bbox.w + 600, 3);
+    expect(pl.h).toBeCloseTo(plain.bbox.h + 400, 3);
+    expect(pl.x + pl.w / 2).toBeCloseTo(plain.bbox.x + plain.bbox.w / 2, 3);
+    expect(on.bbox).toEqual({ x: pl.x, y: pl.y, w: pl.w, h: pl.h });
+    const sq = buildWordmark('가나', { ...jamoP, plate: { ...jamoP.plate, on: true, square: true } })!.plate!;
+    expect(sq.w).toBeCloseTo(sq.h, 3);
+    const el = buildWordmark('가나', { ...jamoP, plate: { ...jamoP.plate, on: true, shape: 'ellipse' } })!.plate!;
+    expect(el.rx).toBeCloseTo(el.w / 2, 3);
+  });
+
   it('글자별 흔들림·부리·붓 끝은 그 글자에만 적용된다', () => {
     const plain = buildWordmark('가가', jamoP)!;
     for (const o of [{ wobble: 0.8 }, { hookStart: 0.7, hookEnd: 0.7 }, { taper: 0.8 }]) {

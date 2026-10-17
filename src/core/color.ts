@@ -1,8 +1,10 @@
 export const INK = '#111111';
 export const PAPER = '#f2efe8';
 
-export function resolveColor(color: string, bg: 'light' | 'dark'): string {
+/** 글자색. 'auto'는 배경에, 배경 판이 켜져 있으면 판과 더 대비되는 색(흰색/검정)에 맞춥니다. */
+export function resolveColor(color: string, bg: 'light' | 'dark', plate?: { on: boolean; color: string }): string {
   if (color !== 'auto') return color;
+  if (plate?.on) return contrast('#ffffff', plate.color) >= contrast(INK, plate.color) ? '#ffffff' : INK;
   return bg === 'light' ? INK : PAPER;
 }
 

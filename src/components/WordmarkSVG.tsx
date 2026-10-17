@@ -1,6 +1,7 @@
 import { useId, useRef } from 'react';
 import type { Wordmark } from '../core/types';
 import { UNIT } from '../core/types';
+import { platePath } from '../core/plate';
 import { artHeight, artTransform, contentBox, wordCenter } from '../core/art';
 import type { ArtLayer } from '../core/art';
 
@@ -126,6 +127,9 @@ export function WordmarkSVG({ layers, pad = 0.12, guides = false, art = [], artE
     >
       {artEdit && (
         <rect x={vx} y={vy} width={vw} height={vh} fill="transparent" onClick={() => artEdit.onSelect(null)} />
+      )}
+      {layers.map((l, i) =>
+        !l.ghost && l.wordmark.plate ? <path key={`pl${i}`} d={platePath(l.wordmark.plate)} fill={l.wordmark.plate.color} /> : null,
       )}
       {art.filter((l) => !l.front).map(renderArt)}
       {layers.map((l, i) => {

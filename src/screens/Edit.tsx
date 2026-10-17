@@ -38,8 +38,8 @@ export function Edit({ go }: { go: (r: Route) => void }) {
 
   const layers: Layer[] = useMemo(() => {
     const out: Layer[] = [];
-    const baseColor = resolveColor(baseline.color, bg);
-    const curColor = resolveColor(params.color, bg);
+    const baseColor = resolveColor(baseline.color, bg, baseline.plate);
+    const curColor = resolveColor(params.color, bg, params.plate);
     if (compare === 'baseline') {
       if (base.wordmark) out.push({ wordmark: base.wordmark, color: baseColor });
     } else if (compare === 'overlay') {

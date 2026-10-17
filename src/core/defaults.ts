@@ -65,6 +65,7 @@ export const DEFAULT_PARAMS: Params = {
   overlapAmount: 0.12,
   overlapOpacity: 0.7,
   color: 'auto',
+  plate: { on: false, shape: 'rect', color: '#2d5bff', padX: 0.22, padY: 0.22, radius: 0.3, square: false },
 };
 
 /** 슬라이더와 변주 탐색이 공유하는 허용 범위 */
@@ -85,6 +86,7 @@ export const LIMITS = {
   width: { min: 20, max: 300, step: 1 },
   tracking: { min: -0.6, max: 2, step: 0.01 },
   cornerAmount: { min: 0.1, max: 2.5, step: 0.01 },
+  platePad: { min: 0, max: 1.5, step: 0.01 },
   skew: { min: -60, max: 60, step: 1 },
   vScale: { min: 20, max: 300, step: 1 },
   outlineWidth: { min: 0.004, max: 0.25, step: 0.002 },

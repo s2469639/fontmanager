@@ -29,7 +29,7 @@ export function WordCard({ text, params, index, title, tags, pinned, chip, actio
         {!pinned && chip && <span className="card__badge card__badge--soft">{chip}</span>}
         {wordmark ? (
           <WordmarkSVG
-            layers={[{ wordmark, color: resolveColor(params.color, 'light') }]}
+            layers={[{ wordmark, color: resolveColor(params.color, 'light', params.plate) }]}
             pad={0.1}
             label={`${text} — ${title}`}
             className={loading ? 'card__svg is-loading' : 'card__svg'}

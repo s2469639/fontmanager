@@ -28,13 +28,17 @@ export function Result({ go }: { go: (r: Route) => void }) {
   const [size, setSize] = useState<string>('400');
   const [pad, setPad] = useState<string>('0.25');
   const [colorMode, setColorMode] = useState<'current' | 'black' | 'white'>(
-    params.color === 'auto' ? 'black' : 'current',
+    params.color === 'auto' && !params.plate.on ? 'black' : 'current',
   );
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
 
   const exportColor =
-    colorMode === 'current' && params.color !== 'auto' ? params.color : colorMode === 'white' ? '#ffffff' : '#111111';
+    colorMode === 'current' && (params.color !== 'auto' || params.plate.on)
+      ? resolveColor(params.color, 'light', params.plate)
+      : colorMode === 'white'
+        ? '#ffffff'
+        : '#111111';
 
   const opt = useMemo(
     () => ({ color: exportColor, pxPerEm: Number(size), padEm: Number(pad) }),
@@ -78,8 +82,9 @@ export function Result({ go }: { go: (r: Route) => void }) {
   };
 
   const panels = (['light', 'dark'] as const).map((bg) => {
-    const color = resolveColor(params.color, bg);
-    const ratio = contrast(color, BG[bg]);
+    const color = resolveColor(params.color, bg, params.plate);
+    // 배경 판이 있으면 글자는 판 위에 놓이므로 판 색과의 대비를 봅니다.
+    const ratio = contrast(color, params.plate.on ? params.plate.color : BG[bg]);
     return { bg, color, ratio };
   });
 
@@ -103,7 +108,7 @@ export function Result({ go }: { go: (r: Route) => void }) {
             <figure key={bg} className="rpanel" style={{ background: BG[bg] }}>
               {wordmark && (
                 <WordmarkSVG
-                  layers={[{ wordmark, color: resolveColor(params.color, bg) }]}
+                  layers={[{ wordmark, color: resolveColor(params.color, bg, params.plate) }]}
                   art={art}
                   pad={0.4}
                   label={`${text} (${bg === 'light' ? '밝은' : '어두운'} 배경)`}
@@ -145,7 +150,7 @@ export function Result({ go }: { go: (r: Route) => void }) {
               label="PNG 글자색"
               value={colorMode}
               options={[
-                ...(params.color !== 'auto' ? [{ value: 'current' as const, label: '현재 색' }] : []),
+                ...(params.color !== 'auto' || params.plate.on ? [{ value: 'current' as const, label: '현재 색' }] : []),
                 { value: 'black', label: '검정' },
                 { value: 'white', label: '흰색' },
               ]}

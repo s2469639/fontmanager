@@ -127,6 +127,20 @@ export interface FxParams {
   stripePhase: number;
 }
 
+/** 글자 뒤에 까는 색 판(앱 아이콘·배지 느낌). 판 안에서 글자가 가운데에 놓입니다. */
+export interface PlateParams {
+  on: boolean;
+  shape: 'rect' | 'ellipse';
+  color: string;
+  /** 글자 둘레 여백(em) */
+  padX: number;
+  padY: number;
+  /** 사각형 모서리 둥글기 0(각짐)..1(알약) */
+  radius: number;
+  /** true면 정사각형(원이면 정원)으로 맞춥니다 */
+  square: boolean;
+}
+
 /** 워드마크의 모든 조형 값. UI와 렌더링 엔진이 공유하는 유일한 상태 형태입니다. */
 export interface Params {
   engine: Engine;
@@ -167,8 +181,9 @@ export interface Params {
   /** 겹침 효과의 글자 불투명도 */
   overlapOpacity: number;
 
-  /** 'auto'는 배경에 맞춰 검정/흰색 */
+  /** 'auto'는 배경에 맞춰 검정/흰색 (배경 판이 있으면 판과 대비되는 색) */
   color: string;
+  plate: PlateParams;
 }
 
 export type WeightMode =
@@ -213,6 +228,16 @@ export interface BBox {
   h: number;
 }
 
+export interface PlateShape {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rx: number;
+  ry: number;
+  color: string;
+}
+
 export interface Wordmark {
   /** 최종 좌표(1em = 1000, y는 SVG 방향)로 변환된 글자별 경로 */
   paths: string[];
@@ -232,6 +257,8 @@ export interface Wordmark {
   linecap: Cap;
   miterLimit: number;
   opacity: number;
+  /** 배경 판. 있으면 bbox는 판까지 포함합니다. */
+  plate?: PlateShape;
   /** 선택한 글꼴이 지원하지 않아 대체 글꼴로 그린 글자 */
   fallbackChars: string[];
   /** 어느 글꼴에도 없어 그리지 못한 글자 */

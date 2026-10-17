@@ -1,5 +1,6 @@
 import type { BBox, Wordmark } from './types';
 import { UNIT } from './types';
+import { platePath } from './plate';
 import { artHeight, contentBox, loadArtImage, wordCenter } from './art';
 import type { ArtLayer } from './art';
 
@@ -144,6 +145,11 @@ export async function renderToCanvas(wm: Wordmark, opt: ExportOptions, art: ArtL
     c.setTransform(k, 0, 0, k, (-box.x + opt.padEm * UNIT) * k, (-box.y + opt.padEm * UNIT) * k);
   };
   const center = wordCenter(wm.bbox);
+  if (wm.plate) {
+    setup(ctx);
+    ctx.fillStyle = wm.plate.color;
+    ctx.fill(new Path2D(platePath(wm.plate)));
+  }
   for (const l of art.filter((a) => !a.front)) {
     setup(ctx);
     await drawArt(ctx, l, center);

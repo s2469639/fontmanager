@@ -90,6 +90,19 @@ describe('작업 파일', () => {
 });
 
 describe('직접 그린 뼈대 저장', () => {
+  it('배경 판 설정이 저장·복원되고 잘못된 값은 걸러진다', async () => {
+    const params = { ...DEFAULT_PARAMS, plate: { on: true, shape: 'ellipse' as const, color: '#ff3b1d', padX: 0.5, padY: 0.4, radius: 0.7, square: true } };
+    const json = await serializeProject({ text: '가', params, baseline: null, baselineLabel: '', bg: 'light', art: [] }, false);
+    expect(parseProject(json).params.plate).toEqual(params.plate);
+    const evil = { ...base, params: { plate: { on: 'yes', shape: 'star', color: 'url(x)', padX: 99, radius: -3 } } };
+    const pl = parseProject(JSON.stringify(evil)).params.plate;
+    expect(pl.on).toBe(false);
+    expect(pl.shape).toBe('rect');
+    expect(pl.color).toBe(DEFAULT_PARAMS.plate.color);
+    expect(pl.padX).toBe(1.5);
+    expect(pl.radius).toBe(0);
+  });
+
   it('글자별 흔들림·부리·붓 끝도 저장되고 범위를 맞춘다', async () => {
     const params = { ...DEFAULT_PARAMS, glyphs: { 0: { wobble: 0.5, hookStart: 0.4, hookEnd: 0.2, taper: 0.6 } } };
     const json = await serializeProject({ text: '가', params, baseline: null, baselineLabel: '', bg: 'light', art: [] }, false);

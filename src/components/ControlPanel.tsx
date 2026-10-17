@@ -8,6 +8,7 @@ import { axisValue } from '../core/fontStore';
 import { Segmented, Slider, EffectCard } from './Controls';
 import type { BulgeScope, Cap, Corner, Engine, FxParams, GlyphOverride, HookStyle, JamoParams, LinkMode, OShape, Params, PartAdjust, WaveAxis } from '../core/types';
 
+const PLATE_SWATCHES = ['#2d5bff', '#ff3b1d', '#ffd400', '#111111', '#ff5c93', '#0a8f5b', '#f2efe8'];
 const SWATCHES = ['#111111', '#ffffff', '#ff3b1d', '#1f3bff', '#0a8f5b', '#e8a900'];
 
 export function ControlPanel() {
@@ -155,6 +156,77 @@ export function ControlPanel() {
 
       <section className="panel__section">
         <h2 className="panel__title">조형 효과</h2>
+
+        <EffectCard
+          title="배경 판"
+          desc="글자 뒤에 색 판을 깝니다 (앱 아이콘·배지 느낌)"
+          on={p.plate.on}
+          onToggle={(on) => set({ plate: { ...p.plate, on } })}
+        >
+          <Segmented<'rect' | 'ellipse'>
+            label="판 모양"
+            value={p.plate.shape}
+            options={[
+              { value: 'rect', label: '사각형' },
+              { value: 'ellipse', label: '타원·원' },
+            ]}
+            onChange={(v) => set({ plate: { ...p.plate, shape: v } })}
+          />
+          <div style={{ height: 10 }} />
+          {p.plate.shape === 'rect' && (
+            <Slider
+              label="모서리 둥글기"
+              value={p.plate.radius}
+              min={0}
+              max={1}
+              step={0.01}
+              display={p.plate.radius <= 0.01 ? '각짐' : p.plate.radius >= 0.99 ? '알약' : `${Math.round(p.plate.radius * 100)}%`}
+              onChange={(v) => set({ plate: { ...p.plate, radius: v } })}
+            />
+          )}
+          <Slider
+            label="좌우 여백"
+            value={p.plate.padX}
+            {...LIMITS.platePad}
+            display={`${Math.round(p.plate.padX * 100)}%`}
+            onChange={(v) => set({ plate: { ...p.plate, padX: v } })}
+          />
+          <Slider
+            label="상하 여백"
+            value={p.plate.padY}
+            {...LIMITS.platePad}
+            display={`${Math.round(p.plate.padY * 100)}%`}
+            onChange={(v) => set({ plate: { ...p.plate, padY: v } })}
+          />
+          <label className="presetbox__check">
+            <input
+              type="checkbox"
+              checked={p.plate.square}
+              onChange={(e) => set({ plate: { ...p.plate, square: e.target.checked } })}
+            />
+            정사각형(정원)으로 맞추기
+          </label>
+          <div className="swatches" style={{ marginTop: 10 }} role="group" aria-label="판 색">
+            {PLATE_SWATCHES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={p.plate.color === c ? 'swatch is-on' : 'swatch'}
+                style={{ background: c }}
+                onClick={() => set({ plate: { ...p.plate, color: c } })}
+                aria-label={`판 색 ${c}`}
+              />
+            ))}
+            <label className="swatch swatch--custom" title="판 색 직접 고르기">
+              <input
+                type="color"
+                value={p.plate.color}
+                onChange={(e) => set({ plate: { ...p.plate, color: e.target.value } })}
+              />
+            </label>
+          </div>
+          <p className="field__note">글자색이 '자동'이면 판과 잘 대비되는 흰색/검정으로 정해져요.</p>
+        </EffectCard>
 
         <EffectCard
           title="기울기"

@@ -9,7 +9,7 @@ import { analyzeText } from './text';
 import { FONTS } from '../data/fonts';
 import { ArtError, MAX_ART_LAYERS, readArtFile } from './art';
 import type { ArtLayer } from './art';
-import type { Cap, Corner, Engine, FxParams, GlyphOverride, HookStyle, JamoParams, LinkMode, OShape, Params, PartAdjust, SkelNode, SkelStroke } from './types';
+import type { Cap, Corner, Engine, FxParams, GlyphOverride, HookStyle, JamoParams, LinkMode, OShape, Params, PartAdjust, PlateParams, SkelNode, SkelStroke } from './types';
 
 export const APP_ID = 'hangul-form-lab';
 export const PROJECT_VERSION = 1;
@@ -53,6 +53,20 @@ function sanitizeJamo(raw: unknown): JamoParams {
     hookEnd: num(r.hookEnd, d.hookEnd, LIMITS.hook),
     hookStyle: oneOf<HookStyle>(r.hookStyle, ['tick', 'beak'], d.hookStyle),
     hookFlip: bool(r.hookFlip, d.hookFlip),
+  };
+}
+
+function sanitizePlate(raw: unknown): PlateParams {
+  const d = DEFAULT_PARAMS.plate;
+  const r = isObj(raw) ? raw : {};
+  return {
+    on: bool(r.on, d.on),
+    shape: oneOf<PlateParams['shape']>(r.shape, ['rect', 'ellipse'], d.shape),
+    color: typeof r.color === 'string' && COLOR.test(r.color) ? r.color : d.color,
+    padX: num(r.padX, d.padX, LIMITS.platePad),
+    padY: num(r.padY, d.padY, LIMITS.platePad),
+    radius: num(r.radius, d.radius, { min: 0, max: 1 }),
+    square: bool(r.square, d.square),
   };
 }
 
@@ -186,6 +200,7 @@ export function sanitizeParams(raw: unknown): Params {
     overlapOn: bool(r.overlapOn, d.overlapOn),
     overlapAmount: num(r.overlapAmount, d.overlapAmount, LIMITS.overlapAmount),
     overlapOpacity: num(r.overlapOpacity, d.overlapOpacity, LIMITS.overlapOpacity),
+    plate: sanitizePlate(r.plate),
     color: r.color === 'auto' || (typeof r.color === 'string' && COLOR.test(r.color)) ? (r.color as string) : d.color,
   };
 }

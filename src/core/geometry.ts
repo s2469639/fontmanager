@@ -1,3 +1,4 @@
+import { plateFor } from './plate';
 import type { BBox, Cmd, GlyphShape, Params, Wordmark } from './types';
 import { UNIT } from './types';
 import { FALLBACK_FONT_ID, getFont } from '../data/fonts';
@@ -286,9 +287,11 @@ export function buildWordmark(text: string, p: Params): Wordmark | null {
     const g = (widths[i] > 0 ? widths[i] : spec.strokeWidth) / 2;
     return { x: b.minX - g, y: b.minY - g, w: b.maxX - b.minX + g * 2, h: b.maxY - b.minY + g * 2 };
   });
+  const plate = plateFor(bbox, p.plate);
   return {
     paths,
-    bbox,
+    bbox: plate ? { x: plate.x, y: plate.y, w: plate.w, h: plate.h } : bbox,
+    plate,
     cuts: stripeBands(p.fx, bbox),
     ...spec,
     widths: widths.map((w) => (w > 0 ? w : spec.strokeWidth)),
