@@ -103,6 +103,10 @@ function sanitizeGlyphs(raw: unknown): Record<number, GlyphOverride> {
     }
     if (typeof v.oShape === 'string') g.oShape = oneOf<OShape>(v.oShape, ['circle', 'square', 'diamond'], 'circle');
     if (typeof v.circleGap === 'number') g.circleGap = num(v.circleGap, 0, LIMITS.circleGap);
+    if (typeof v.wobble === 'number') g.wobble = num(v.wobble, 0, LIMITS.wobble);
+    if (typeof v.hookStart === 'number') g.hookStart = num(v.hookStart, 0, LIMITS.hook);
+    if (typeof v.hookEnd === 'number') g.hookEnd = num(v.hookEnd, 0, LIMITS.hook);
+    if (typeof v.taper === 'number') g.taper = num(v.taper, 0, LIMITS.taper);
     if (typeof v.stroke === 'number') g.stroke = num(v.stroke, 1, { min: 0.1, max: 8 });
     if (typeof v.link === 'number') g.link = num(v.link, 0, LIMITS.link);
     const sk = sanitizeSkeletons(v.skeletons);

@@ -966,12 +966,20 @@ function contrastOptions(jp: JamoParams, mult: number) {
 
 export function buildJamoGlyph(
   ch: string,
-  jp: JamoParams,
+  jp0: JamoParams,
   index: number,
   ov?: GlyphOverride,
   variants?: Record<string, number>,
   custom?: Record<string, SkelStroke[]>,
 ): GlyphShape | null {
+  // 이 글자만 따로 정한 값이 있으면 전체 설정 위에 덮어씁니다.
+  const jp: JamoParams = {
+    ...jp0,
+    wobble: ov?.wobble ?? jp0.wobble,
+    hookStart: ov?.hookStart ?? jp0.hookStart,
+    hookEnd: ov?.hookEnd ?? jp0.hookEnd,
+    taper: ov?.taper ?? jp0.taper,
+  };
   const syl = decompose(ch);
   const placed = syl ? assemble(syl, jp, ov, variants, custom, index) : assembleLoose(ch, jp, variants, custom);
   if (!placed) return null;

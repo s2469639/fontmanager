@@ -396,6 +396,15 @@ describe('뼈대 직접 그리기', () => {
     expect(b.paths[0]).not.toEqual(a.paths[0]);
   });
 
+  it('글자별 흔들림·부리·붓 끝은 그 글자에만 적용된다', () => {
+    const plain = buildWordmark('가가', jamoP)!;
+    for (const o of [{ wobble: 0.8 }, { hookStart: 0.7, hookEnd: 0.7 }, { taper: 0.8 }]) {
+      const g = buildWordmark('가가', { ...jamoP, glyphs: { 1: o } })!;
+      expect(g.paths[0]).toEqual(plain.paths[0]);
+      expect(g.paths[1]).not.toEqual(plain.paths[1]);
+    }
+  });
+
   it('글자별 뼈대는 그 글자에만 적용되고 모든 글자용 뼈대보다 우선한다', () => {
     const shared: Record<string, SkelStroke[]> = {
       ㄱ: [{ t: 'path', nodes: [{ x: 0, y: 0 }, { x: 1, y: 0.4 }, { x: 0.3, y: 1 }] }],

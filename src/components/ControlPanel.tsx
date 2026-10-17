@@ -640,6 +640,35 @@ function GlyphEditor({ p, set }: { p: Params; set: (patch: Partial<Params>) => v
             hint="전체 선 굵기에 곱해집니다."
             onChange={(v) => write({ ...ov, stroke: v })}
           />
+          <Slider
+            label="이 글자의 손글씨 흔들림"
+            value={ov.wobble ?? p.jamo.wobble}
+            {...LIMITS.wobble}
+            display={ov.wobble === undefined ? '전체 설정' : ov.wobble <= 0.01 ? '없음' : `${Math.round(ov.wobble * 100)}%`}
+            onChange={(v) => write({ ...ov, wobble: v })}
+          />
+          <Slider
+            label="이 글자의 부리 (시작)"
+            value={ov.hookStart ?? p.jamo.hookStart}
+            {...LIMITS.hook}
+            display={ov.hookStart === undefined ? '전체 설정' : `${Math.round(ov.hookStart * 100)}%`}
+            onChange={(v) => write({ ...ov, hookStart: v })}
+          />
+          <Slider
+            label="이 글자의 부리 (끝)"
+            value={ov.hookEnd ?? p.jamo.hookEnd}
+            {...LIMITS.hook}
+            display={ov.hookEnd === undefined ? '전체 설정' : `${Math.round(ov.hookEnd * 100)}%`}
+            onChange={(v) => write({ ...ov, hookEnd: v })}
+          />
+          <Slider
+            label="이 글자의 붓 끝 가늘기"
+            value={ov.taper ?? p.jamo.taper}
+            {...LIMITS.taper}
+            display={ov.taper === undefined ? '전체 설정' : `${Math.round(ov.taper * 100)}%`}
+            hint="이 글자만 획 끝을 붓처럼 가늘게 합니다."
+            onChange={(v) => write({ ...ov, taper: v })}
+          />
           <button
             type="button"
             className="btn btn--soft"

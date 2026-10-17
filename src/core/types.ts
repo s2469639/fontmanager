@@ -64,6 +64,11 @@ export interface GlyphOverride {
   T?: Partial<PartAdjust>;
   oShape?: OShape;
   circleGap?: number;
+  /** 이 글자만 손글씨 흔들림·부리·붓 끝 가늘기를 따로 정합니다. */
+  wobble?: number;
+  hookStart?: number;
+  hookEnd?: number;
+  taper?: number;
   /** 이 글자의 선 굵기 배율 */
   stroke?: number;
   /** 이 글자의 획 연결 정도 (0이면 이 글자만 끔) */
